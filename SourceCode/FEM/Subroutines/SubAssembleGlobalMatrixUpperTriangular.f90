@@ -59,8 +59,6 @@ subroutine AssembleGlobalMatrixUpperTriangular( GM , Ke , Kg )
             
             endif
 
-            
-
         enddo
     enddo
 

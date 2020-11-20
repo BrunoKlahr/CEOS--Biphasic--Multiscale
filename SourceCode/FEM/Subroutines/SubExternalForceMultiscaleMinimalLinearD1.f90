@@ -44,11 +44,11 @@ subroutine ExternalForceMultiscaleMinimalLinearD1( ElementList, AnalysisSettings
     !************************************************************************************
 
     !************************************************************************************
-    ! ASSEMBLING THE INTERNAL FORCE
+    ! ASSEMBLING THE EXTERNAL FORCE FOR MULTISCALE MINIMAL LINEAR D1
     !************************************************************************************
-
     Fext=0.0d0
-
+    !$OMP PARALLEL DEFAULT(PRIVATE) SHARED(AnalysisSettings, ElementList, Lambda_F, Lambda_u, Fext ) 
+    !$OMP DO
      do  e = 1, size( ElementList )
 
         call ElementList(e)%El%GetElementNumberDOF(AnalysisSettings , nDOFel)
@@ -65,9 +65,13 @@ subroutine ExternalForceMultiscaleMinimalLinearD1( ElementList, AnalysisSettings
         Fe = matmul(transpose(Ge),Lambda_F) + matmul(transpose(Ne),Lambda_u)
         !Fe = matmul(transpose(Ge),Lambda_F)
 
+        !$OMP CRITICAL
         Fext(GM) = Fext(GM) + Fe
+        !$OMP END CRITICAL
 
     enddo
+    !$OMP END DO
+    !$OMP END PARALLEL
 
     !************************************************************************************
 

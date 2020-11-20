@@ -76,8 +76,8 @@ contains
         write(*,*) 'Opening Input File:',trim(DataFileName)
 
         ! TODO (Jan#1#11/07/15): Melhorar informações para o usuário.  ...
-    !Escrever na tela quais arquivos estão sendo abertos,
-    !isso ajuda a evitar erros
+        !Escrever na tela quais arquivos estão sendo abertos,
+        !isso ajuda a evitar erros
         call DataFile%Setup(FileName=trim(DataFileName),FileNumber=12)
         write(*,*) 'Reading Input File:',trim(DataFileName)
 
@@ -186,17 +186,21 @@ contains
         type (ClassAnalysis) :: AnalysisSettings
         character(len=255)::string
 
-        character(len=100),dimension(8)::ListOfOptions,ListOfValues
-        logical,dimension(8)::FoundOption
+        character(len=100),dimension(10)::ListOfOptions,ListOfValues
+        logical,dimension(10)::FoundOption
         integer :: i
 
 
         ListOfOptions=["Problem Type","Analysis Type","Nonlinear Analysis","Hypothesis of Analysis", &
-                        "Element Technology","Maximum Cut Backs","Multiscale Analysis","Multiscale Model"]
+                        "Element Technology","Maximum Cut Backs","Multiscale Analysis","Multiscale Model", &
+                        "Fiber Reinforced Analysis", "Fiber Data File"]
 
 
         call DataFile%FillListOfOptions(ListOfOptions,ListOfValues,FoundOption)
 
+        if (DataFile%ERROR) then
+            write(*,*) "Error was found in the ReadAnalysisSettings. There is probably a missing option in the Settings file!"
+        endif
         call DataFile%CheckError
 
         do i=1,size(FoundOption)
@@ -205,7 +209,7 @@ contains
                 stop
             endif
         enddo
-
+             
 
         ! Option Problem Type
         if (DataFile%CompareStrings(ListOfValues(1),"Mechanical")) then
@@ -290,6 +294,16 @@ contains
             call Error( "Multiscale Analysis not identified" )
         endif
         
+        ! Option Fiber Reinforced Analysis
+        if (DataFile%CompareStrings(ListOfValues(9),"True")) then
+            AnalysisSettings%FiberReinforcedAnalysis =.true.
+            AnalysisSettings%FiberDataFileName = ListOfValues(10)
+        elseif (DataFile%CompareStrings(ListOfValues(9),"False")) then
+            AnalysisSettings%FiberReinforcedAnalysis =.false.
+            AnalysisSettings%FiberDataFileName = "None"
+        else
+            call Error( "Fiber Reinforced Analysis not identified" )
+        endif
 
         BlockFound(iAnalysisSettings)=.true.
         call DataFile%GetNextString(string)
@@ -364,7 +378,6 @@ contains
         ELSEIF (.NOT.FoundOption(3)) then
             call DataFile%RaiseError("MESH AND BOUNDARY CONDITIONS :: Preprocessor was not found")
         ENDIF
-
 
 
         TimeFileName = ListOfValues(2)

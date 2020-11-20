@@ -328,8 +328,10 @@ module ModExportResultFile
 
         allocate( U(TotalNDOF) )
 
-
-        call FEA%AdditionalMaterialModelRoutine()
+        ! Calling the additional material routine, which defines the orientation of the fibers, when necessary
+        if(FEA%AnalysisSettings%FiberReinforcedAnalysis) then
+            call FEA%AdditionalMaterialModelRoutine()
+        endif
 
         ! Restart Constitutive Model
         ! -----------------------------------------------------------------------------------
@@ -524,8 +526,11 @@ module ModExportResultFile
         allocate( P(TotalNDOF_Fluid) )
         allocate( Psolid(size(FEA%GlobalNodesList)) )
         Psolid = 0.0d0
-
-        call FEA%AdditionalMaterialModelRoutine()
+ 
+        ! Calling the additional material routine, which defines the orientation of the fibers, when necessary
+        if(FEA%AnalysisSettings%FiberReinforcedAnalysis) then
+            call FEA%AdditionalMaterialModelRoutine()
+        endif
 
         ! Restart Constitutive Model
         ! -----------------------------------------------------------------------------------

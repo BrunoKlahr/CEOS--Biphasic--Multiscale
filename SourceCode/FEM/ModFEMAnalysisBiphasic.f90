@@ -169,7 +169,10 @@ module ModFEMAnalysisBiphasic
 		    !************************************************************************************
 
             ! Calling the additional material routine, which defines the orientation of the fibers, when necessary
-            call this%AdditionalMaterialModelRoutine()
+            if(this%AnalysisSettings%FiberReinforcedAnalysis) then
+                write(*,*) "Calling the Additional Material Routine in order to define the fiber direction."
+                call this%AdditionalMaterialModelRoutine()
+            endif
 
             ! Calling the quasi-static analysis routine
             !************************************************************************************

@@ -76,6 +76,26 @@ module ModFEMAnalysis
 
     end type
 
+        
+    type ClassFiberProperties
+        ! Class Attributes
+        !----------------------------------------------------------------------------------------
+        real(8)             :: Radius
+        real(8)             :: Length
+        real(8)             :: Pitch
+        real(8)             :: Hand
+        real(8)             :: Theta
+        integer             :: ElemRef
+        integer             :: NodeRef
+        character(len=100)  :: FiberDataFileName
+        !----------------------------------------------------------------------------------------
+        contains
+        ! Class Methods
+        !----------------------------------------------------------------------------------
+            procedure :: ReadFiberDataFile
+            
+    end type
+        
     contains
 
 
@@ -781,7 +801,10 @@ module ModFEMAnalysis
 
             
             ! Calling the additional material routine, which defines the orientation of the fibers, when necessary
-            call this%AdditionalMaterialModelRoutine()
+            if(this%AnalysisSettings%FiberReinforcedAnalysis) then
+                write(*,*) "Calling the Additional Material Routine in order to define the fiber direction."
+                call this%AdditionalMaterialModelRoutine()
+            endif
 
             ! Calling the quasi-static analysis routine
             !************************************************************************************
@@ -1827,13 +1850,16 @@ module ModFEMAnalysis
             ! -----------------------------------------------------------------------------------
             !use ModMathRoutines
             implicit none
-
+           
+            ! Input variables
             ! Object
             ! -----------------------------------------------------------------------------------
             class (ClassFEMAnalysis) :: this
+       
+            ! Internal variables
+            ! Object
+            type(ClassFiberProperties) :: FiberProperties
 
-
-            ! Input variables
             ! -----------------------------------------------------------------------------------
             real(8) :: R, L, pitch, hand, theta, Xgp, X0ref, tXgp, norm_mX
             real(8) :: mX(3), NodalValuesX(50)
@@ -1846,27 +1872,27 @@ module ModFEMAnalysis
  		    !************************************************************************************
             ! ADDITIONAL COMPUTATIONS ON GAUSS POINTS
 		    !************************************************************************************
-            ! TODO (Thiago#1#): Passar os enumeradores dos modelos para realizar as contas somente nos elementos que possuem o devido modelo material.
-
-
+            ! TODO (Thiago#1#): Passar os enumeradores dos modelos para realizar as contas somente nos elementos que possuem o devido modelo material.           
+            
+            ! File data file name
+            FiberProperties%FiberDataFileName = this%AnalysisSettings%FiberDataFileName
+            ! Reading fiber data file
+            call FiberProperties%ReadFiberDataFile()
+            
             !####################################################################################
             ! Cálculo das tangentes da hélice
             !####################################################################################
-
-    !if ( n .eq. 1234123312 ) then
-
-
-         ! Parâmetros da Hélice
-            R = 2.30d-3     !0.1d0            !1 fibra de 3 voltas: 2.30d-3 mm
-            L = 99.3d-3     !1.00d0           !1 fibra de 3 voltas: 297.90d-3 / 1 volta: 99.3d-3 mm
-            pitch =  1.0d0
-            hand  = -1.0d0
-            theta =  0.0d0   !CUIDAR A ORDEM DO DESENHO NO SOLIDWORKS!!!!!   !1 fibra de 3 voltas: 0.0d0
+            ! Parâmetros da Hélice
+            R     = FiberProperties%Radius !2.30d-3     !0.1d0   !1 fibra de 3 voltas: 2.30d-3 mm
+            L     = FiberProperties%Length !99.3d-3     !1.00d0  !1 fibra de 3 voltas: 297.90d-3 / 1 volta: 99.3d-3 mm
+            pitch = FiberProperties%Pitch  !1.0d0
+            hand  = FiberProperties%Hand   !-1.0d0
+            theta = FiberProperties%Theta  !0.0d0   !CUIDAR A ORDEM DO DESENHO NO SOLIDWORKS!!!!!   !1 fibra de 3 voltas: 0.0d0
 
             ! Elemento e Nó de Referência
-            ElemRef = 77      !16308  !1          !211 !166 !45271 !15226 !4401     !2 Fibras: 1776  !12 Fibras: 4526       !1 fibra de 3 voltas: 1501
-            NodeRef = 1334    !19670  !75         !1064 !110 !289 !5150 !2088     !2 Fibras: 2868  !12 Fibras: 5950       !1 fibra de 3 voltas: 31
-
+            ElemRef = FiberProperties%ElemRef !77     !16308  !1  !211 !166 !45271 
+            NodeRef = FiberProperties%NodeRef !1334    !19670  !75         !1064 !110 !289 !5150           
+                
             !Obtendo o ID do Nó de Referência
             NumberOfNodes =  this%ElementList(ElemRef)%El%GetNumberOfNodes()
             do n = 1,NumberOfNodes
@@ -1875,7 +1901,6 @@ module ModFEMAnalysis
                     exit
                 endif
             enddo
-
 
             ! Cálculando a tangente nos pontos de Gauss (Para toda a malha!!!!)
             NodalValuesX = 0.0d0
@@ -1919,13 +1944,73 @@ module ModFEMAnalysis
             enddo
             !####################################################################################
 
-    !endif
-
  		    !************************************************************************************
-
 
         end subroutine
         !==========================================================================================
+        
+        
+        !=================================================================================================
+        subroutine ReadFiberDataFile(this)
+
+            use ModParser
+            use ModTools
+
+            implicit none
+            
+            ! Input/Output variable
+            class(ClassFiberProperties) :: this
+            
+            ! Internal Variables
+            type (ClassParser) :: DataFile
+            
+            character(len=100),dimension(7)  :: ListOfOptions,ListOfValues
+            logical,dimension(7)             :: FoundOption
+            character(len=255)               :: string , endstring, DataFileName
+            integer                          :: i
+
+            !************************************************************************************
+            ! READ THE FIBER PARAMETERS
+		    !************************************************************************************
+
+            DataFileName = this%FiberDataFileName
+            !write(*,*) 'Opening Input File: ',trim(DataFileName)
+            call DataFile%Setup(FileName=trim(DataFileName),FileNumber=17)
+            !write(*,*) 'Reading Input File:'
+
+            ! Start to reading file.dat             
+            if (DataFile%Error) then
+                call DataFile%ShowError
+                stop
+            endif 
+            
+            ListOfOptions=["Radius","Length","Pitch","Hand","theta","ElemRef","NodeRef"]
+
+		    call DataFile%FillListOfOptions(ListOfOptions,ListOfValues,FoundOption)
+            call DataFile%CheckError
+            
+            do i=1,size(FoundOption)
+                if (.not.FoundOption(i)) then
+                    write(*,*) "Fiber Data :: Option not found ["//trim(ListOfOptions(i))//"]"
+                    stop
+                endif
+            enddo
+            
+            this%Radius  = ListOfValues(1)
+            this%Length  = ListOfValues(2)
+            this%Pitch   = ListOfValues(3)
+            this%Hand    = ListOfValues(4)
+            this%Theta   = ListOfValues(5)
+            this%ElemRef = ListOfValues(6)
+            this%NodeRef = ListOfValues(7)
+            
+            !Finish the reading
+            call DataFile%CloseFile
+            !write(*,*) 'Input File Closed:'
+            write(*,*) ''       
+
+    end subroutine
+        !=================================================================================================
 
 
 end module

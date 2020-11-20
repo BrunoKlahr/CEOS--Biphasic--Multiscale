@@ -147,6 +147,9 @@ module ModAnalysis
         integer ::  MultiscaleModel
         logical ::  NLAnalysis
         logical ::  MultiscaleAnalysis
+        
+        logical             :: FiberReinforcedAnalysis
+        character(len=100)  :: FiberDataFileName
 
         integer ::  NDOFnode   , AnalysisDimension
         integer ::  BRowSize   , DSize
