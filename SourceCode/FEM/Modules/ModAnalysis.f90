@@ -145,6 +145,8 @@ module ModAnalysis
         integer ::  Hypothesis
         integer ::  ElementTech
         integer ::  MultiscaleModel
+        integer ::  MultiscaleModelFluid
+        integer ::  MultiscaleModelSolid
         logical ::  NLAnalysis
         logical ::  MultiscaleAnalysis
         

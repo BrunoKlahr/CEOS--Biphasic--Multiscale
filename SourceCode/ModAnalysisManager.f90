@@ -13,6 +13,7 @@
 module ModAnalysisManager
 
     use ModMultiscaleAnalysis
+    use ModMultiscaleAnalysisBiphasic
     use ModReadInputFile
     use ModAnalysis
     use ModFEMAnalysisBiphasic
@@ -57,30 +58,35 @@ module ModAnalysisManager
                             BC , NLSolver )
 
 
-        if (AnalysisSettings%MultiscaleAnalysis) then
-            allocate( ClassMultiscaleAnalysis :: Analysis)
-            allocate(Analysis%Kg)
-        else
-            if (AnalysisSettings%ProblemType .eq. ProblemTypes%Mechanical) then
+        if (AnalysisSettings%ProblemType .eq. ProblemTypes%Mechanical) then
+            if (AnalysisSettings%MultiscaleAnalysis) then
+                allocate( ClassMultiscaleAnalysis :: Analysis)
+                allocate(Analysis%Kg)
+            else
                 allocate( ClassFEMAnalysis :: Analysis)
                 allocate(Analysis%Kg)
-            elseif (AnalysisSettings%ProblemType .eq. ProblemTypes%Biphasic) then
-                allocate( ClassFEMAnalysisBiphasic :: Analysis)
+            endif 
+        elseif (AnalysisSettings%ProblemType .eq. ProblemTypes%Biphasic) then
+            if (AnalysisSettings%MultiscaleAnalysis) then
+                allocate( ClassMultiscaleAnalysisBiphasic :: Analysis)
                 allocate(Analysis%Kg)
                 allocate(Analysis%KgFluid)
             else
-                stop 'Error: Problem Type not identified in ReadAndCreateAnalysis'
+                allocate( ClassFEMAnalysisBiphasic :: Analysis)
+                allocate(Analysis%Kg)
+                allocate(Analysis%KgFluid)
             endif
+        else
+            stop 'Error: Problem Type not identified in ReadAndCreateAnalysis'
         endif
+        
 
         Analysis%AnalysisSettings => AnalysisSettings
         Analysis%GlobalNodesList => GlobalNodesList
         Analysis%ElementList => ElementList
         Analysis%BC => BC
         Analysis%NLSolver => NLSolver
-
-        !allocate(Analysis%Kg)
-
+        
         !************************************************************************************
 
     end subroutine

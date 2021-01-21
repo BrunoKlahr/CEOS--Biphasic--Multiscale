@@ -48,14 +48,15 @@ module ModElementTetraU10P4
             procedure :: GetShapeFunctions      => GetShapeFunctions_Tetra10
             procedure :: GetDifShapeFunctions   => GetDifShapeFunctions_Tetra10
             procedure :: AllocateGaussPoints    => AllocateGaussPointsParameters_Tetra10
+            procedure :: GetNodalNaturalCoord   => GetNodalNaturalCoord_Tetra10
             
             ! Parte do Fluido
             procedure :: GetProfile_fluid            => GetProfile_Tetra4
-            procedure :: GetGaussPoints_fluid        => GetGaussPoints_Tetra10
+            procedure :: GetGaussPoints_fluid        => GetGaussPoints_Tetra4 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             procedure :: GetNumberOfNodes_fluid      => GetNumberOfNodes_Tetra4
             procedure :: GetShapeFunctions_fluid     => GetShapeFunctions_Tetra4
             procedure :: GetDifShapeFunctions_fluid  => GetDifShapeFunctions_Tetra4
-            procedure :: AllocateGaussPoints_fluid   => AllocateGaussPointsParameters_Tetra10
+            procedure :: AllocateGaussPoints_fluid   => AllocateGaussPointsParameters_Tetra4 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     end type
 	!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -555,6 +556,52 @@ module ModElementTetraU10P4
 
         end subroutine
         !==========================================================================================
+        
+        !==========================================================================================
+        ! Method GetNodalNaturalCoord:  This method points to the natural coordinates of Tetra 10 nodes
+        ! used in the Pressure interpolation.
+        !------------------------------------------------------------------------------------------
+        ! Modifications:
+        ! Date:         Author:
+        !==========================================================================================
+        subroutine GetNodalNaturalCoord_Tetra10(this, NodalNaturalCoord)
+
+		    !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+		    !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            implicit none
+
+            ! Object
+            ! -----------------------------------------------------------------------------------
+            class(ClassElementTetraU10P4) :: this
+
+            ! Output variables
+            ! -----------------------------------------------------------------------------------
+            real(8), dimension(:,:) , intent(inout)                :: NodalNaturalCoord
+                       
+
+		    !************************************************************************************
+            ! Defining the Natural Coordinates of the T10 nodes
+            NodalNaturalCoord = 0.0d0
+            NodalNaturalCoord(1,2)=1.0d0
+            NodalNaturalCoord(2,3)=1.0d0
+            NodalNaturalCoord(3,4)=1.0d0
+            NodalNaturalCoord(1,5)=0.5d0
+            NodalNaturalCoord(1,6)=0.5d0
+            NodalNaturalCoord(2,6)=0.5d0
+            NodalNaturalCoord(2,7)=0.5d0
+            NodalNaturalCoord(3,8)=0.5d0
+            NodalNaturalCoord(1,9)=0.5d0
+            NodalNaturalCoord(3,9)=0.5d0
+            NodalNaturalCoord(2,10)=0.5d0
+            NodalNaturalCoord(3,10)=0.5d0
+
+		    !************************************************************************************
+            !==========================================================================================
+
+        end subroutine
 
 
 

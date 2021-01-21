@@ -415,6 +415,32 @@ module ModInterfaces
         end subroutine
         !==============================================================================================
 
+        !==============================================================================================
+        subroutine MaterialConstructorFluid( ElementBiphasic, ElementList, GlobalNodesList, Material, AnalysisSettings )
+
+            !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+            !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            use ModAnalysis
+            use ModElementLibrary
+            use ModNodes
+            use ModConstitutiveModelLibrary
+
+            implicit none
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            class(ClassElementBiphasic) , pointer                 :: ElementBiphasic
+            type (ClassElementsWrapper) , pointer , dimension(:)  :: ElementList
+            type(ClassAnalysis)                                   :: AnalysisSettings
+            type(ClassNodes) , dimension(:) , pointer             :: GlobalNodesList
+            class(ClassConstitutiveModelWrapper)  , pointer       :: Material
+
+        end subroutine
+        !==============================================================================================
+
 
         !==============================================================================================
         subroutine ExternalForceMultiscaleMinimal( ElementList, AnalysisSettings, Lambda_F, Lambda_u, Fext )

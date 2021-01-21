@@ -35,7 +35,6 @@ module ModElement
 		! Class Attributes
 		!-----------------------------------------------------------------------------------------
         type(ClassElementNodes)      , pointer , dimension(:) :: ElementNodes => null()
-        !type(ClassElementNodes)      , pointer , dimension(:) :: ElementNodes_fluid => null()
         class(ClassConstitutiveModel), pointer , dimension(:) :: GaussPoints  => null()
         real (8) :: Volume, VolumeX
 
@@ -54,6 +53,7 @@ module ModElement
             procedure :: ElementVolume
             procedure :: ElementInterpolation
             procedure :: Matrix_Ne_and_Ge
+
             
             procedure :: ElementConstructor
 
@@ -71,8 +71,8 @@ module ModElement
             procedure :: GetProfile
             procedure :: AllocateGaussPoints
             procedure :: IntegrateLine
+            procedure :: GetNodalNaturalCoord
 
-           
             
 
 
@@ -85,6 +85,7 @@ module ModElement
     type, extends (ClassElement) :: ClassElementBiphasic
         ! Class Attributes
         type(ClassElementNodes)      , pointer , dimension(:) :: ElementNodes_fluid => null()
+        class(ClassConstitutiveModel), pointer , dimension(:) :: GaussPoints_fluid  => null()
         
     contains
             
@@ -345,6 +346,12 @@ module ModElement
             class(ClassElement) :: this
             integer , intent(inout) :: nGP
             stop "Erro::AllocateGaussPoints::Dummy"
+        end subroutine
+        subroutine GetNodalNaturalCoord(this,NodalNaturalCoord)
+            implicit none
+            class(ClassElement) :: this
+            real(8),dimension(:,:),intent(inout)  :: NodalNaturalCoord
+            stop "Erro::GetNodalNaturalCoord::Dummy"
         end subroutine
         !==========================================================================================
         subroutine AllocateGaussPoints_fluid(this,nGP)

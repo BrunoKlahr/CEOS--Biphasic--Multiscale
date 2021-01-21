@@ -18,7 +18,7 @@ module ModProbe
     type ClassVariableNames
         integer  :: Displacements=1 , Temperature=2, CauchyStress=3, LogarithmicStrain=4, &
                     DeformationGradient=5 , FirstPiolaStress=6, UserDefined=7, Pressure = 8, &
-                    RelativeVelocity=9, Total_Volume = 10
+                    RelativeVelocity=9, Total_Volume = 10, GradientPressure = 11
     end type
     type (ClassVariableNames), parameter :: VariableNames = ClassVariableNames()
 
@@ -67,6 +67,12 @@ module ModProbe
     type, extends(ClassProbe) :: ClassMicroStructureProbe
     contains
         procedure :: WriteProbeResult => WriteProbeResult_MicroStructure
+    end type
+    
+    ! Micro Structure Biphasic
+    type, extends(ClassProbe) :: ClassMicroStructureBiphasicProbe
+    contains
+        procedure :: WriteProbeResult => WriteProbeResult_MicroStructureBiphasic
     end type
     
     ! Macro Structure
@@ -144,6 +150,8 @@ module ModProbe
             enu = VariableNames%Temperature
         ELSEIF ( Comp%CompareStrings( Variable,'Pressure') ) then
             enu = VariableNames%Pressure
+        ELSEIF ( Comp%CompareStrings( Variable,'Gradient Pressure') ) then
+            enu = VariableNames%GradientPressure
         ELSEIF ( Comp%CompareStrings( Variable,'First Piola Stress') ) then
             enu = VariableNames%FirstPiolaStress
         ELSEIF ( Comp%CompareStrings( Variable,'Relative Velocity') ) then
@@ -638,7 +646,54 @@ module ModProbe
     end subroutine
     !==========================================================================================
     
-        !==========================================================================================
+    !==========================================================================================
+    subroutine MicroStructureBiphasicProbeConstructor (Probe, Variable, FileName, ComponentsString)
+
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            use ModParser
+            implicit none
+
+            ! Object
+            ! -----------------------------------------------------------------------------------
+            class(ClassProbe), pointer :: Probe
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            character(len=*) :: Variable
+            character(len=*) :: FileName
+            character(len=*) :: ComponentsString
+
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            type(ClassParser) :: Comp
+            type(ClassMicroStructureBiphasicProbe), pointer :: MicroStructureBiphasicProbe
+            !************************************************************************************
+
+            call Comp%Setup()
+
+            allocate(MicroStructureBiphasicProbe)
+
+            MicroStructureBiphasicProbe%FileName       = FileName
+            MicroStructureBiphasicProbe%VariableName   = Variable
+            MicroStructureBiphasicProbe%VariableNameID = ParseVariableName(Variable)
+
+            if ( Comp%CompareStrings(ComponentsString, 'All') ) then
+                MicroStructureBiphasicProbe%AllComponents = .true.
+            else
+                MicroStructureBiphasicProbe%AllComponents = .false.
+                Call ParseComponents( ComponentsString , MicroStructureBiphasicProbe%Components )
+            endif
+
+
+            Probe => MicroStructureBiphasicProbe
+
+    end subroutine
+    !==========================================================================================
+    
+    
+    
+    !==========================================================================================
     subroutine MacroStructureProbeConstructor (Probe, Variable, FileName, ComponentsString)
 
             ! Modules and implicit declarations
@@ -1022,7 +1077,185 @@ module ModProbe
     end subroutine
     !==========================================================================================
 
+    
         !==========================================================================================
+    subroutine WriteProbeResult_MicroStructureBiphasic(this,FEA)
+
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            use ModFEMAnalysis
+            use ModFEMAnalysisBiphasic
+            use ModMathRoutines
+            use ModParser
+            use ModContinuumMechanics
+            use ModMultiscaleAnalysis
+            use ModMultiscaleAnalysisBiphasic
+            use ModVoigtNotation
+
+            implicit none
+
+            ! Object
+            ! -----------------------------------------------------------------------------------
+            class(ClassMicroStructureBiphasicProbe) :: this
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            class(ClassFEMAnalysis) :: FEA
+
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            type (ClassParser) :: Comp
+
+            real(8), dimension(size(this%Components)) , target :: ProbeVariable
+            integer :: FileNumber, i, NumberOfComp, NumberOfGaussPoint, NumberOfElements
+
+            real(8) , dimension(FEA%AnalysisSettings%StrainSize) :: Strain_Voigt
+            real(8) , dimension(9) :: HomogenizedStress
+            real(8) , dimension(9) :: F_voigt
+            real(8) , dimension(3) :: eigenvalues
+            real(8) , dimension(3,3) :: F, b, Log_Strain, eigenvectors, N
+
+            real(8) , dimension(9)            :: UD_Variable
+            integer                           :: UD_ID, UD_Length, UD_VariableType
+            character(len=255)                :: UD_Name
+            logical :: FoundUserVariable
+            class(ClassConstitutiveModel) , pointer :: GP
+            real(8)                                 :: HomogenizedF(3,3),HomogenizedF_voigt(9)
+            real(8)                                 :: HomogenizedP(3,3),HomogenizedP_voigt(9)
+            real(8)                                 :: HomogenizedCauchy(3,3), HomogenizedCauchy_Voigt(6)
+            real(8)                                 :: HomogenizedPressure, HomogenizedPressureWrite(1)
+            real(8)                                 :: HomogenizedGradientPressure(3), HomogenizedwX(3)
+            !************************************************************************************
+            ! Teste se probe esta ativo
+            if (.not. this%Active) then
+                return
+            endif
+
+            call Comp%Setup()
+
+
+            select type(FEA)
+                class is(ClassFEMAnalysisBiphasic)
+
+                    select type (FEA)
+                        class is (ClassMultiscaleAnalysisBiphasic)
+
+                            select case (this%VariableNameID)
+
+                                ! Writing First Piola Stress
+                                case (VariableNames%FirstPiolaStress)
+
+                                    call FEA%HomogenizeTotalStressBiphasic(HomogenizedStress)
+
+                                    NumberOfComp = 9
+                                    if ( any( this%Components .gt. NumberOfComp ) ) then
+                                        call this%WriteOnFile('ERROR - Homogenized First Piola component is greater than Max Stress Size')
+                                        this%Active = .false.
+                                    else
+                                        if (this%AllComponents) then
+                                            call this%WriteOnFile(FEA%Time , HomogenizedStress)
+                                        else
+                                            ProbeVariable = HomogenizedStress(this%Components)
+                                            call this%WriteOnFile(FEA%Time , ProbeVariable)
+                                        endif
+                                    endif
+
+
+                                ! Writing Deformation Gradient
+                                case (VariableNames%DeformationGradient)
+
+                                    call FEA%HomogenizeDeformationGradientBiphasic(HomogenizedF)
+
+                                    NumberOfComp = 9
+                                    if ( any( this%Components .gt. NumberOfComp ) ) then
+                                        call this%WriteOnFile('ERROR - Homogenized Deformation Gradient component is greater than Max Size')
+                                        this%Active = .false.
+                                    else
+                                        HomogenizedF_voigt = Convert_to_Voigt_3D(HomogenizedF)
+                                        if (this%AllComponents) then
+                                            call this%WriteOnFile(FEA%Time , HomogenizedF_voigt)
+                                        else
+                                            ProbeVariable = HomogenizedF_voigt(this%Components)
+                                            call this%WriteOnFile(FEA%Time , ProbeVariable)
+                                        endif
+
+                                    endif
+
+                                ! Writing Cauchy Stress
+                                case (VariableNames%CauchyStress)
+
+                                    ! Computing Homogenized First Piola (in Voigt Notation)
+                                    call FEA%HomogenizeTotalStressBiphasic(HomogenizedStress)
+
+                                    ! Mapping First Piola in Voigt to Tensor 3D
+                                    HomogenizedP = VoigtToTensor2(HomogenizedStress)
+
+                                    ! Computing Homogenized Deformation Gradient (in Tensor Notation)
+                                    call FEA%HomogenizeDeformationGradientBiphasic(HomogenizedF)
+
+                                    ! Push-Forward First Piola to Cauchy
+                                    HomogenizedCauchy = StressTransformation(HomogenizedF,HomogenizedP,StressMeasures%FirstPiola,StressMeasures%Cauchy)
+
+                                    HomogenizedCauchy_Voigt = Tensor2ToVoigtSym(HomogenizedCauchy)
+
+                                    NumberOfComp = 6
+                                    if ( any( this%Components .gt. NumberOfComp ) ) then
+                                        call this%WriteOnFile('ERROR - Homogenized Cauchy Stress component is greater than Max Stress Size')
+                                        this%Active = .false.
+                                    else
+                                        if (this%AllComponents) then
+                                            call this%WriteOnFile(FEA%Time , HomogenizedCauchy_Voigt)
+                                        else
+                                            ProbeVariable = HomogenizedCauchy_Voigt(this%Components)
+                                            call this%WriteOnFile(FEA%Time , ProbeVariable)
+                                        endif
+                                    endif
+                                
+                                ! Writing Fluid Pressure
+                                case (VariableNames%Pressure)
+
+                                    ! Computing Homogenized Pressure
+                                    call FEA%HomogenizedPressureBiphasic(HomogenizedPressure)
+                                    HomogenizedPressureWrite(1) = HomogenizedPressure
+
+                                    call this%WriteOnFile(FEA%Time , HomogenizedPressureWrite)
+                                    
+
+                                ! Writing Fluid Gradient Pressure
+                                case (VariableNames%GradientPressure)
+
+                                    ! Computing Homogenized Pressure
+                                    call FEA%HomogenizedGradientPressureBiphasic(HomogenizedGradientPressure)
+                                    
+                                    call this%WriteOnFile(FEA%Time , HomogenizedGradientPressure)
+                                
+                                ! Writing Relative Velocity wX
+                                case (VariableNames%RelativeVelocity)
+
+                                    ! Computing Homogenized wX
+                                    call FEA%HomogenizedRelativeVelocitywXBiphasic( HomogenizedwX )
+                                    
+                                    call this%WriteOnFile(FEA%Time , HomogenizedwX)
+                                    
+                                case default
+                                stop 'Error in ModProbe - WriteProbeResult_MicroStructureBiphasic - VariableNameID - not identified'
+
+                            end select
+
+                        class default
+                            call this%WriteOnFile('Not a multiscale biphasic analysis')
+                            this%Active = .false.
+                    end select
+                class default
+                    call this%WriteOnFile('Not a biphasic analysis')
+                    this%Active = .false.
+            end select    
+
+    end subroutine
+    !==========================================================================================
+    
+    
+    !==========================================================================================
     subroutine WriteProbeResult_MacroStructure(this,FEA)
 
             ! Modules and implicit declarations

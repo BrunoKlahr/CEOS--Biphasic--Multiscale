@@ -183,7 +183,7 @@ module ModFEMAnalysisBiphasic
                                                   this%BC, this%Kg, this%KgFluid, this%NLSolver )
                              
                 case default
-                    stop "Error in AnalysisType - ModFEMAnalysis"
+                    stop "Error in AnalysisType - ModFEMAnalysisBiphasic"
             end select
 
 		    !************************************************************************************
@@ -521,7 +521,7 @@ module ModFEMAnalysisBiphasic
                       !  end if
                         
                         ! -----------------------------------------------------------------------------------
-                        ! Update the Solid Velocity via Newmark's equation
+                        ! Update the Solid Velocity via diferenças finitas
                         call ComputeVelocity(DeltaTime, Uconverged, U, VSolidconverged, VSolid, ASolidconverged, ASolid)
                         
                         

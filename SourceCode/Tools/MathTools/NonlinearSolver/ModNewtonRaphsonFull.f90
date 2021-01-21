@@ -76,7 +76,7 @@ contains
         it = 0
         X=Xguess
         
-        ! tolerance adjustment
+        ! tolerance adjustment 
         if (Phase .eq. 1) then
             tol = this%tol
         elseif (Phase .eq. 2) then

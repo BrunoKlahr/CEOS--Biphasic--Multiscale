@@ -251,6 +251,11 @@ module ModExportResultFile
 
             call MicroStructureProbeConstructor(ProbeList(i)%Pr, ProbeVariableName, ProbeFileName, ProbeComponentsString)
         
+        ! Probes de Micro Estrutura análise bifásica
+        elseif (  File%CompareStrings(ProbeLocation, 'Micro Structure Biphasic' ) ) then
+
+            call MicroStructureBiphasicProbeConstructor(ProbeList(i)%Pr, ProbeVariableName, ProbeFileName, ProbeComponentsString)
+
         ! Probes de Macro Estrutura
         elseif (  File%CompareStrings(ProbeLocation, 'Macro Structure' ) ) then
 
@@ -469,8 +474,9 @@ module ModExportResultFile
         type(ClassStatus)                         :: Status
         integer :: TotalNDOF_Solid, LoadCase, Step, CutBack, SubStep, el, gp, i, cont
         integer :: TotalNDOF_Fluid, FileNumberFluid, FileNumberSolid
-        real(8) :: Time
+        real(8) :: Time, OldTime, DeltaTime
         real(8) , allocatable, target, dimension(:) :: U , P, Psolid
+        real(8) , allocatable, target, dimension(:) :: OldU , OldVSolid, VSolid, OldASolid, ASolid
         character(len=255) :: OptionName, OptionValue, String
         character(len=255) :: FileNameSolid, FileNameFluid
         integer :: Flag_EndStep, NumberOfIterations,IterationFile
@@ -495,7 +501,7 @@ module ModExportResultFile
         InterpolatePressure    = .false.
         DO cont=1,size(PostProcessor%VARIABLENAMES)
             ! Check if it is necessary to compute the relative velocity
-            IF (PostProcessor%VARIABLENAMES(cont) == 'relative_velocity') THEN
+            IF (PostProcessor%VARIABLENAMES(cont) == 'relativevelocity') THEN
                 CalulaRelativeVelocity = .true.
             ENDIF
             ! Check if it is necessary to interpolate the pressure on the solid nodes
@@ -526,6 +532,19 @@ module ModExportResultFile
         allocate( P(TotalNDOF_Fluid) )
         allocate( Psolid(size(FEA%GlobalNodesList)) )
         Psolid = 0.0d0
+        
+        allocate( OldU(TotalNDOF_Solid) )
+        allocate( OldVSolid(TotalNDOF_Solid) )
+        allocate( VSolid(TotalNDOF_Solid) )
+        allocate( OldASolid(TotalNDOF_Solid) )
+        allocate(ASolid(TotalNDOF_Solid) )
+        OldU = 0.0d0
+        OldVSolid = 0.0d0
+        VSolid = 0.0d0
+        OldASolid = 0.0d0
+        ASolid = 0.0d0
+        
+        
  
         ! Calling the additional material routine, which defines the orientation of the fibers, when necessary
         if(FEA%AnalysisSettings%FiberReinforcedAnalysis) then
@@ -546,7 +565,9 @@ module ModExportResultFile
         do i = 1,size(FEA%GlobalNodesList)
             FEA%GlobalNodesList(i)%Coord = FEA%GlobalNodesList(i)%CoordX
         enddo
-
+        
+        Time = 0.0d0
+        OldTime = 0.0d0
 
         LOOP_TIME :do while (.true.)
 
@@ -606,8 +627,16 @@ module ModExportResultFile
             FEA%LoadCase = LoadCase
             FEA%Time = Time
             FEA%U => U
-            FEA%P => P            ! Pressão original nos nós de presão
+            FEA%P => P            ! Pressão original nos nós de pressão
             FEA%Psolid => Psolid  ! É necessário fazer uma conta para obter pressão em todos os nós do sólido
+            
+            
+            ! Update the Solid Velocity via diferenças finitas
+            DeltaTime = Time - OldTime
+            if (DeltaTime>0.0d0) then
+                call ComputeVelocity(DeltaTime, OldU, U, OldVSolid, VSolid, OldASolid, ASolid)
+            endif
+            FEA%Vsolid => Vsolid
             
             ! Update stress and internal variables
             
@@ -650,7 +679,11 @@ module ModExportResultFile
             !    call UpdateMeshCoordinates(FEA%GlobalNodesList,FEA%AnalysisSettings,U)
             !endif
 
-
+            ! Atualizar variáveis para o calculo da VSolid
+            OldTime = Time
+            OldU = U
+            OldVSolid = VSolid
+            OldASolid = ASolid
 
         enddo LOOP_TIME
 
@@ -662,8 +695,6 @@ module ModExportResultFile
     end subroutine 
     !==========================================================================================
 
-
-    
    !==========================================================================================
    ! Paralelizado
    subroutine InterpolatePFluidToPSolid(FEA, P,Psolid)
@@ -687,34 +718,42 @@ module ModExportResultFile
        real(8) , dimension(:)                          :: Psolid
        
        ! Inernal variables
-       class(ClassElementBiphasic), pointer :: ElBiphasic
+       class(ClassElementBiphasic), pointer            :: ElBiphasic
        integer                                         :: TotalNDOF_Solid, nDOFel_fluid
-       integer     :: i, j, k, Elem,  NumberOfThreads
+       integer                                         :: i, j, k, Elem,  NumberOfThreads
+       integer                                         :: DimProb, nNodesSolid
        real(8)                                         :: Pinterpolated
        real(8) , pointer , dimension(:)                :: Pe
        integer , pointer , dimension(:)                :: GM_fluid
-       real(8), dimension(3,10)                        :: NodalNaturalCoordT10
+       !real(8), dimension(3,10)                        :: NodalNaturalCoordT10
+       real(8), allocatable, dimension(:,:)            :: NodalNaturalCoord
        real(8), dimension(3)                           :: NaturalCoord
        
        TotalNDOF_Solid = size(Psolid)
        call ConvertElementToElementBiphasic(FEA%ElementList(1)%El,  ElBiphasic)
        call ElBiphasic%GetElementNumberDOF_fluid(FEA%AnalysisSettings, nDOFel_fluid)
        
+       DimProb = FEA%AnalysisSettings%AnalysisDimension
+       nNodesSolid =ElBiphasic%GetNumberOfNodes()
+       ! Allocating NodalNaturalCoord
+       allocate(NodalNaturalCoord(DimProb,nNodesSolid))
+       NodalNaturalCoord = 0.0d0
+       call ElBiphasic%GetNodalNaturalCoord(NodalNaturalCoord)
        
         ! Definindo o vetor de NaturalCoord para os nós do T10
-        NodalNaturalCoordT10 = 0.0d0
-        NodalNaturalCoordT10(1,2)=1.0d0
-        NodalNaturalCoordT10(2,3)=1.0d0
-        NodalNaturalCoordT10(3,4)=1.0d0
-        NodalNaturalCoordT10(1,5)=0.5d0
-        NodalNaturalCoordT10(1,6)=0.5d0
-        NodalNaturalCoordT10(2,6)=0.5d0
-        NodalNaturalCoordT10(2,7)=0.5d0
-        NodalNaturalCoordT10(3,8)=0.5d0
-        NodalNaturalCoordT10(1,9)=0.5d0
-        NodalNaturalCoordT10(3,9)=0.5d0
-        NodalNaturalCoordT10(2,10)=0.5d0
-        NodalNaturalCoordT10(3,10)=0.5d0
+        !NodalNaturalCoordT10 = 0.0d0
+        !NodalNaturalCoordT10(1,2)=1.0d0
+        !NodalNaturalCoordT10(2,3)=1.0d0
+        !NodalNaturalCoordT10(3,4)=1.0d0
+        !NodalNaturalCoordT10(1,5)=0.5d0
+        !NodalNaturalCoordT10(1,6)=0.5d0
+        !NodalNaturalCoordT10(2,6)=0.5d0
+        !NodalNaturalCoordT10(2,7)=0.5d0
+        !NodalNaturalCoordT10(3,8)=0.5d0
+        !NodalNaturalCoordT10(1,9)=0.5d0
+        !NodalNaturalCoordT10(3,9)=0.5d0
+        !NodalNaturalCoordT10(2,10)=0.5d0
+        !NodalNaturalCoordT10(3,10)=0.5d0
     
         !---------------------------------------------------------------------------------
         
@@ -723,7 +762,7 @@ module ModExportResultFile
         call omp_set_num_threads( NumberOfThreads )
            
         !$OMP PARALLEL DEFAULT(PRIVATE)                                &
-                       Shared( FEA, P, Psolid, NodalNaturalCoordT10)           
+                       Shared( FEA, P, Psolid, NodalNaturalCoord)           
                        !Private( i, j, k, Elem )                        &
                        !FirstPrivate ( )
    
@@ -758,7 +797,7 @@ module ModExportResultFile
                 call ElBiphasic%GetGlobalMapping_fluid(FEA%AnalysisSettings, GM_fluid)
                 Pe = P(GM_fluid)
           
-                NaturalCoord = NodalNaturalCoordT10(:,k)
+                NaturalCoord = NodalNaturalCoord(:,k)
    
                 call ElBiphasic%ElementInterpolation_fluid(Pe, NaturalCoord, Pinterpolated)
                 Psolid(i) = Pinterpolated
@@ -801,13 +840,13 @@ module ModExportResultFile
         ! -----------------------------------------------------------------------------------
 
         integer :: e , gp , nDOFel_Fluid
-        integer , pointer , dimension(:)   :: GM_fluid
-        real(8) , pointer , dimension(:,:) :: NaturalCoord
-        real(8) , pointer , dimension(:)   :: Weight
+        integer , pointer , dimension(:)     :: GM_fluid
+        real(8) , pointer , dimension(:,:)   :: NaturalCoord
+        real(8) , pointer , dimension(:)     :: Weight
         class(ClassElementBiphasic), pointer :: ElBiphasic
-        real(8) , pointer , dimension(:) :: Pe
-        real(8) , pointer , dimension(:,:)  :: Kf, H
-        real(8)							    :: detJ, FactorAxi
+        real(8) , pointer , dimension(:)     :: Pe
+        real(8) , pointer , dimension(:,:)   :: Kf, H
+        real(8)							     :: detJ, FactorAxi
   
 
         !************************************************************************************
@@ -823,8 +862,8 @@ module ModExportResultFile
             call ElBiphasic%GetElementNumberDOF_fluid(AnalysisSettings, nDOFel_fluid)
             GM_fluid => GMfluid_Memory(1:nDOFel_fluid)
             Pe => Pe_Memory(1:nDOFel_fluid)
-            call ElBiphasic%GetGaussPoints_Fluid(NaturalCoord,Weight)
-            call ElBiphasic%GetGlobalMapping_Fluid(AnalysisSettings,GM_Fluid)
+            call ElBiphasic%GetGaussPoints_fluid(NaturalCoord,Weight)
+            call ElBiphasic%GetGlobalMapping_fluid(AnalysisSettings,GM_Fluid)
            
             
             ! Allocating matrix H

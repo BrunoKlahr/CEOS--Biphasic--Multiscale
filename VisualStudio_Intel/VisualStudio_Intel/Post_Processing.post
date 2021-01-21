@@ -5,7 +5,7 @@
 POST PROCESSOR 
 
 	Post Processor = HyperView 12 !None !GiD 7 !
-	Results = Displacements , Cauchy Stress !, Fiber_Direction! Logarithmic Strain !, Fiber_Direction , Fiber_Dissipation , Matrix_Dissipation !,  , Cauchy_Stress_Fiber_Contribution, Cauchy_Stress_Matrix_Contribution ! , First Piola Stress, Deformation Grad !,  , Logarithmic Strain !, von Mises Cauchy Stress
+	Results = Displacements , Cauchy Stress, Pressure  ,  Relative Velocity !, Fiber_Direction! Logarithmic Strain !, Fiber_Direction , Fiber_Dissipation , Matrix_Dissipation !,  
 	File Name = hypermesh_results.hwascii
 	
 END POST PROCESSOR 
@@ -41,28 +41,59 @@ END POST PROCESSOR
 ! Variable Name: First Piola Stress
 ! Components: 1=XX ; 2=YX ; 3=ZX ; 4=XY ; 5=YY ; 6=ZY ; 7=XZ ; 8=YZ ; 9=ZZ ; All
 !-----------------------------------------------------------------------------------------
+! Location: Micro Structure Biphasic !(Homogenized Variables for Biphasic analysis)! 
+!
+! Variable Name: Cauchy Stress
+! Components: 1=XX ; 2=YY ; 3=ZZ ; 4=XY ; 5=YZ; 6=XZ ; All
+!
+! Variable Name: Deformation Gradient
+! Components: 1=XX ; 2=YX ; 3=ZX ; 4=XY ; 5=YY ; 6=ZY ; 7=XZ ; 8=YZ ; 9=ZZ ; All
+!
+! Variable Name: First Piola Stress
+! Components: 1=XX ; 2=YX ; 3=ZX ; 4=XY ; 5=YY ; 6=ZY ; 7=XZ ; 8=YZ ; 9=ZZ ; All
+!-----------------------------------------------------------------------------------------
 !XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
-NUMBER OF PROBES = 0
+NUMBER OF PROBES = 4
 
 !XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+PROBE
+	Location = Micro Structure Biphasic
+	File Name = Homogenized_Relative_Velocity.probe
+	Variable Name = Relative Velocity
+	Components = All
+END PROBE
 
 PROBE
-	Location = Micro Structure
+	Location = Micro Structure Biphasic
+	File Name = Homogenized_Pressure.probe
+	Variable Name = Pressure
+	Components = All
+END PROBE
+
+PROBE
+	Location = Micro Structure Biphasic
+	File Name = Homogenized_GradientPressure.probe
+	Variable Name = Gradient Pressure
+	Components = All
+END PROBE
+
+PROBE
+	Location = Micro Structure Biphasic
 	File Name = Homogenized_F.probe
 	Variable Name = Deformation Gradient
 	Components = All !1 , 5 , 9 !
 END PROBE
 
 PROBE
-	Location = Micro Structure
+	Location = Micro Structure Biphasic
 	File Name = Homogenized_Cauchy_Stress.probe
 	Variable Name = Cauchy Stress 
 	Components = All !1 !All
 END PROBE
 
 PROBE
-	Location = Micro Structure
+	Location = Micro Structure Biphasic
 	File Name = Homogenized_First_Piola.probe
 	Variable Name = First Piola Stress 
 	Components = All !1 !All

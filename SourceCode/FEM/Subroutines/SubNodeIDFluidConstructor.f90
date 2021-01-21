@@ -55,7 +55,7 @@ subroutine NodeIDFluidConstructor( ElementList, GlobalNodesList )
             s=1  
             Flag=1
             do while ( s .LT. i1)
-                if (j .eq. jVetor(s)) then ! Procura se o nó j já foi adicionado como um nó de fluído
+                if (j .eq. jVetor(s)) then ! Procura se o nó j já foi adicionado como um nó de fluido
                     Flag = 0
                     s=i1                  
                 endif

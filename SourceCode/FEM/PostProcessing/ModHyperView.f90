@@ -137,7 +137,8 @@ module ModHyperView
                     
 
                 case (VariableNames%CauchyStress)
-! TODO (Thiago#2#): O HyperView lê os resultados nos pontos de gauss segundo a conectividade dos nós. Implementado somente para elementos com a mesma quantidade de nós e pontos de gauss.
+! TODO (Thiago#2#): O HyperView lê os resultados nos pontos de gauss segundo a conectividade dos nós. 
+                    !Implementado somente para elementos com a mesma quantidade de nós e pontos de gauss.
 
 
                     nelem = size( FEA%ElementList )
