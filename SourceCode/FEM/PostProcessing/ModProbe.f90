@@ -18,7 +18,7 @@ module ModProbe
     type ClassVariableNames
         integer  :: Displacements=1 , Temperature=2, CauchyStress=3, LogarithmicStrain=4, &
                     DeformationGradient=5 , FirstPiolaStress=6, UserDefined=7, Pressure = 8, &
-                    RelativeVelocity=9, Total_Volume = 10, GradientPressure = 11
+                    RelativeVelocity=9, Total_Volume = 10, GradientPressure = 11, BiphasicTotalCauchyStress = 12
     end type
     type (ClassVariableNames), parameter :: VariableNames = ClassVariableNames()
 
@@ -140,6 +140,8 @@ module ModProbe
         call Comp%Setup
         IF ( Comp%CompareStrings( Variable,'Cauchy Stress') ) then
             enu = VariableNames%CauchyStress
+        ELSEIF ( Comp%CompareStrings( Variable,'Biphasic Total Cauchy Stress') ) then
+            enu = VariableNames%BiphasicTotalCauchyStress
         ELSEIF ( Comp%CompareStrings( Variable,'Deformation Gradient') ) then
             enu = VariableNames%DeformationGradient
         ELSEIF ( Comp%CompareStrings( Variable,'Displacements') ) then

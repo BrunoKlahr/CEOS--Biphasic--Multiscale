@@ -133,12 +133,13 @@ contains
     !---------------------------------------------------------------------------------------------------------------------------------------------------------
                 case (iMacroscopicPressureAndGradient)
                     if (.not.all(BlockFound([iMeshAndBC]))) call DataFile%RaiseError("Mesh must be specified before Multiscale Settings.")
-                    if(AnalysisSettings%ProblemType == ProblemTypes%Biphasic) then
+                    if(AnalysisSettings%ProblemType == ProblemTypes%Mechanical) then
+                        call ReadMacroscopicPressureAndGradientPressureDummy(AnalysisSettings,DataFile,TimeFileName,BC,GlobalNodesList,AnalysisSettings%MultiscaleAnalysis)
+                    elseif(AnalysisSettings%ProblemType == ProblemTypes%Biphasic) then
                         call ReadMacroscopicPressureAndGradientPressureBiphasic(AnalysisSettings,DataFile,TimeFileName,BC,GlobalNodesList,AnalysisSettings%MultiscaleAnalysis)
-                    endif                
-    !---------------------------------------------------------------------------------------------------------------------------------------------------------
-               
-                    
+                    endif
+                   
+    !---------------------------------------------------------------------------------------------------------------------------------------------------------   
                     
                 case default
                     call DataFile%RaiseError("Erro no select.")
@@ -988,6 +989,49 @@ contains
     end subroutine
     !=======================================================================================================================
 
+    !=======================================================================================================================
+    subroutine ReadMacroscopicPressureAndGradientPressureDummy(AnalysisSettings,DataFile,TimeFileName,BC,GlobalNodesList,isMultiscale)
+
+        implicit none
+
+        type (ClassParser)                              :: DataFile
+        type (ClassAnalysis)                            :: AnalysisSettings
+        type (ClassNodes) , pointer , dimension(:)      :: GlobalNodesList
+        class (ClassBoundaryConditions), pointer        :: BC
+        character(len=100)                              :: TimeFileName
+        logical                                         :: isMultiscale
+
+        character(len=255)::string
+
+        character(len=100),dimension(4)::ListOfOptions,ListOfValues
+        logical,dimension(4)::FoundOption
+        integer             :: i
+        !integer ::  i, j, k, nDOFFluid, nNosFluid, node, cont
+
+        ListOfOptions=["P", "GradP1", "GradP2", "GradP3"]
+
+        call DataFile%FillListOfOptions(ListOfOptions,ListOfValues,FoundOption)
+
+        call DataFile%CheckError
+
+        do i=1,size(FoundOption)
+            if (.not.FoundOption(i)) then
+                write(*,*) "Macroscopic Pressure And Gradient :: Option not found ["//trim(ListOfOptions(i))//"]"
+                stop
+            endif
+        enddo
+
+        BlockFound(iMacroscopicPressureAndGradient)=.true.
+        call DataFile%GetNextString(string)
+        if (.not.DataFile%CompareStrings(string,'end'//trim(BlockName(iMacroscopicPressureAndGradient)))) then
+            call DataFile%RaiseError("End of block was expected. BlockName="//trim(BlockName(iMacroscopicPressureAndGradient)))
+        endif
+
+
+    end subroutine
+    !=======================================================================================================================
+
+    
     
     !=======================================================================================================================
     subroutine ReadMacroscopicPressureAndGradientPressureBiphasic(AnalysisSettings,DataFile,TimeFileName,BC,GlobalNodesList,isMultiscale)

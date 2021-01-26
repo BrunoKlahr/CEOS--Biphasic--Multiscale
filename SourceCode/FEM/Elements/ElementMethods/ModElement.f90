@@ -807,8 +807,9 @@ module ModElement
 
 
             ! Retrieving gauss points parameters for numerical integration
-            call this%GetGaussPoints(NaturalCoord,Weight)
-
+            !call this%GetGaussPoints(NaturalCoord,Weight)
+            call this%GetGaussPoints_fluid(NaturalCoord,Weight)
+            
             !Loop over gauss points
             do gp = 1, size(NaturalCoord,dim=1)
 
@@ -1098,7 +1099,8 @@ module ModElement
 
 
             ! Retrieving gauss points parameters for numerical integration
-            call this%GetGaussPoints(NaturalCoord,Weight)
+            !call this%GetGaussPoints(NaturalCoord,Weight)
+            call this%GetGaussPoints_fluid(NaturalCoord,Weight)
 
             !Loop over gauss points
             do gp = 1, size(NaturalCoord,dim=1)

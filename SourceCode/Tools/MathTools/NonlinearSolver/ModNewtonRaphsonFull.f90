@@ -78,9 +78,9 @@ contains
         
         ! tolerance adjustment 
         if (Phase .eq. 1) then
-            tol = this%tol
+            tol = this%tol*1.0d0
         elseif (Phase .eq. 2) then
-           tol = this%tol*1.0d-5
+           tol = this%tol*1.0d0
         endif
 
 

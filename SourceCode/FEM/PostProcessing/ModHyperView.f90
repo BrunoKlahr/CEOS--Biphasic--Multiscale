@@ -223,7 +223,34 @@ module ModHyperView
 
                     deallocate(GaussPointlValues, Conec)
 
+                 case (VariableNames%BiphasicTotalCauchyStress)
+                    ! TODO (Thiago#2#): O HyperView lê os resultados nos pontos de gauss segundo a conectividade dos nós. 
+                    !Implementado somente para elementos com a mesma quantidade de nós e pontos de gauss.
 
+
+                    nelem = size( FEA%ElementList )
+                    ngp = size(FEA%ElementList(1)%el%GaussPoints)
+                    nnodes = size(FEA%ElementList(1)%El%ElementNodes)
+                    allocate( GaussPointlValues( nelem , ngp , 6 ) )
+                    allocate( Conec(nelem , nnodes ) )
+
+                    do e=1,nelem
+                        do gp=1,ngp
+                            GaussPoint => FEA%ElementList(e)%El%GaussPoints(gp)
+                            GaussPointlValues(e,gp,1:FEA%AnalysisSettings%StressSize) = GaussPoint%Stress &
+                                                                                      - GaussPoint%FluidCauchyStress
+                        enddo
+                        do n = 1,nnodes
+                            Conec(e,n) = FEA%ElementList(e)%El%ElementNodes(n)%Node%ID
+                        enddo
+                    enddo
+
+                    LoadCaseChar = FEA%LoadCase
+                    LoadCaseChar = RemoveSpaces(LoadCaseChar)
+                    call this%ExportOnGaussPointsHV( this%VariableNames(v), LoadCaseChar, FEA%Time , Conec, &
+                                                     GaussPointlValues(:,:,1:FEA%AnalysisSettings%StressSize)  , 3 )
+
+                    deallocate(GaussPointlValues, Conec)
 
 
                  case (VariableNames%UserDefined)

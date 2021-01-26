@@ -33,6 +33,7 @@ module ModConstitutiveModel
         real(8)                             :: F(3,3)=0.0d0
         real(8)                             :: T
         real(8)                             :: Time = 0.0d0
+        real(8)                             :: FluidCauchyStress(6)=0.0d0
         
 
 

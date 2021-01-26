@@ -55,6 +55,7 @@ module ModFEMSystemOfEquationsSolid
         use ModInterfaces
         class(ClassFEMSystemOfEquationsSolid) :: this
         real(8),dimension(:) :: X,R
+        real(8)  :: valor
 
             !X -> Global Solid displacement    
         
@@ -76,6 +77,7 @@ module ModFEMSystemOfEquationsSolid
 
             ! Residual
             R = this%Fint - this%Fext
+            valor = maxval( dabs(R))
 
     end subroutine
 
@@ -89,14 +91,17 @@ module ModFEMSystemOfEquationsSolid
         class (ClassGlobalSparseMatrix), pointer     :: G
         real(8),dimension(:)                         :: X , R
         real(8)                                      :: norma
+        real(8) :: valor
 
         call TangentStiffnessMatrixSolid(this%AnalysisSettings , this%ElementList , this%Pfluid , this%Kg )
 
         ! As CC de deslocamento prescrito estão sendo aplicadas no sistema Kx=R e não em Kx=-R!!!
         R = -R
+        valor = maxval( dabs(R))
         !call this%BC%ApplyBoundaryConditions(  this%Kg , R , this%DispDOF, this%Ubar , X   )
         call this%BC%ApplyBoundaryConditionsNEW(  this%Kg , R , this%DispDOF, this%Ubar , X, this%PrescDispSparseMapZERO, this%PrescDispSparseMapONE, this%FixedSupportSparseMapZERO, this%FixedSupportSparseMapONE )
         R = -R
+        valor = maxval( dabs(R))
 
         G => this%Kg
 

@@ -651,6 +651,8 @@ module ModExportResultFile
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             call SolveConstitutiveModel( FEA%ElementList , FEA%AnalysisSettings, Time, U, Status)
             
+            call SolveFluidCauchyStress( FEA%ElementList , FEA%AnalysisSettings, Time, P, Status)
+            
             IF (CalulaRelativeVelocity) THEN
                 call SolveVelocidadeRelativaW( FEA%ElementList , FEA%AnalysisSettings, Time, P, Status)
             ENDIF
@@ -695,9 +697,9 @@ module ModExportResultFile
     end subroutine 
     !==========================================================================================
 
-   !==========================================================================================
-   ! Paralelizado
-   subroutine InterpolatePFluidToPSolid(FEA, P,Psolid)
+    !==========================================================================================
+    ! Paralelizado
+    subroutine InterpolatePFluidToPSolid(FEA, P,Psolid)
    
        !************************************************************************************
        ! DECLARATIONS OF VARIABLES
@@ -814,6 +816,7 @@ module ModExportResultFile
         
     end subroutine
     
+    !==========================================================================================
     subroutine SolveVelocidadeRelativaW( ElementList , AnalysisSettings, Time, P, Status)
 
         !************************************************************************************
@@ -893,5 +896,88 @@ module ModExportResultFile
 
     end subroutine
 
+    !==========================================================================================
+    subroutine SolveFluidCauchyStress( ElementList , AnalysisSettings, Time, P, Status)
 
+        !************************************************************************************
+        ! DECLARATIONS OF VARIABLES
+        !************************************************************************************
+        ! Modules and implicit declarations
+        ! -----------------------------------------------------------------------------------
+        use ModElementLibrary
+        use ModAnalysis
+        use ModStatus
+
+
+        implicit none
+
+        ! Input variables
+        ! -----------------------------------------------------------------------------------
+        type(ClassElementsWrapper) , dimension(:)  :: ElementList
+        type(ClassAnalysis)                        :: AnalysisSettings
+        type(ClassStatus)                          :: Status
+        real(8)                    , dimension(:)  :: P
+        real(8)                                    :: Time
+
+        ! Internal variables
+        ! -----------------------------------------------------------------------------------
+
+        integer :: e , gp , nDOFel_Fluid
+        integer , pointer , dimension(:)     :: GM_fluid
+        real(8) , pointer , dimension(:,:)   :: NaturalCoord
+        real(8) , pointer , dimension(:)     :: Weight
+        class(ClassElementBiphasic), pointer :: ElBiphasic
+        real(8) , pointer , dimension(:)     :: Pe
+        real(8) , dimension(:)   , pointer   :: ShapeFunctionsFluid
+        real(8)							     :: I6(6)
+        integer                              :: nNodesFluid
+  
+
+        !************************************************************************************
+
+        !************************************************************************************
+        ! COMPUTING FLUID CAUCHY STRESS
+        !************************************************************************************
+        
+        I6 = 0.0d0
+        I6(1:3) = 1.0d0
+        
+        if (AnalysisSettings%Stresssize .ne. 6) then
+            stop 'Error: Biphasic Cauchy stress implemented only for the 3D analysis'
+        endif
+        
+        !$OMP PARALLEL DEFAULT(PRIVATE) FIRSTPRIVATE(Status) SHARED(ElementList, AnalysisSettings, P, Time, I6)
+        !$OMP DO
+        do e = 1 , size(ElementList)
+            call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) ! Aponta o objeto ElBiphasic para o ElementList(e)%El mas com o type correto ClassElementBiphasic
+            call ElBiphasic%GetElementNumberDOF_fluid(AnalysisSettings, nDOFel_fluid)
+            GM_fluid => GMfluid_Memory(1:nDOFel_fluid)
+            Pe => Pe_Memory(1:nDOFel_fluid)
+            call ElBiphasic%GetGlobalMapping_fluid(AnalysisSettings,GM_Fluid)
+            Pe = P(GM_fluid)
+            
+            ! Fluid number of nodes
+            nNodesFluid = ElBiphasic%GetNumberOfNodes_fluid()
+            ShapeFunctionsFluid =>  Nf_Memory ( 1:nNodesFluid )
+            
+            ! Retrieving Solid gauss points coordinates for fluid stress computation
+            call ElBiphasic%GetGaussPoints(NaturalCoord,Weight)
+
+            ! Loop over the Gauss Points
+            do gp = 1 , size(ElBiphasic%GaussPoints)
+                
+                ShapeFunctionsFluid=0.0d0
+                call ElBiphasic%GetShapeFunctions_fluid(NaturalCoord(gp,:) , ShapeFunctionsFluid )
+          
+                ElBiphasic%GaussPoints(gp)%FluidCauchyStress= dot_product(ShapeFunctionsFluid,Pe)*I6
+                
+            enddo
+        enddo
+        !$OMP END DO
+        !$OMP END PARALLEL
+
+    end subroutine
+    
+    !==========================================================================================
+    
 end module
