@@ -72,14 +72,11 @@ module ModMultiscaleAnalysisBiphasic
 
         allocate ( Centroid(this%AnalysisSettings%AnalysisDimension), Y(this%AnalysisSettings%AnalysisDimension) )
 
-
-
         TotalVol = 0.0d0
         !Loop over Elements
         do e = 1,size(this%ElementList)
 
             call this%ElementList(e)%El%ElementVolume(this%AnalysisSettings, Volume, VolumeX, Status)
-
             TotalVol = TotalVol + VolumeX
 
         enddo
@@ -115,13 +112,12 @@ module ModMultiscaleAnalysisBiphasic
                                                                        NaturalCoord(gp,:), Y(i) )
                 enddo
 
-                !Homogenized Stress
-                 Centroid = Centroid + Y*Weight(gp)*detJ*FactorAxi/TotalVol
+                ! Centroid 
+                Centroid = Centroid + Y*Weight(gp)*detJ*FactorAxi/TotalVol
 
             enddo
 
         enddo
-
 
         !Translate the centroid to origin
         do i = 1,size(this%GlobalNodesList)
@@ -130,7 +126,6 @@ module ModMultiscaleAnalysisBiphasic
             this%GlobalNodesList(i)%Coord  = this%GlobalNodesList(i)%Coord  - Centroid
 
         enddo
-
 
         !************************************************************************************
 
@@ -254,9 +249,8 @@ module ModMultiscaleAnalysisBiphasic
     
     !=================================================================================================
     subroutine HomogenizedPressureBiphasic( this, HomogenizedPressure )
-     ! NOTE: Homogeneização de pressão realizada na configuração de referência do sólido
-
-
+        
+        ! NOTE: Pressure homogenization realized on the solid reference configuration.
         !************************************************************************************
         ! DECLARATIONS OF VARIABLES
         !************************************************************************************
@@ -365,7 +359,7 @@ module ModMultiscaleAnalysisBiphasic
                 !Determinant of the Jacobian
                 detJX = det(JacobX)
                 
-                ! Obtaining the fluid pressure on the element gauss ponint (Solid element - Solid integration)
+                ! Obtaining the fluid pressure on the element gauss point
                 ShapeFunctionsFluid=0.0d0
                 call ElBiphasic%GetShapeFunctions_fluid(NaturalCoord(gp,:) , ShapeFunctionsFluid )
                 
@@ -391,7 +385,8 @@ module ModMultiscaleAnalysisBiphasic
     
     !=================================================================================================
     subroutine HomogenizedGradientPressureBiphasic( this, HomogenizedGradientPressure )
-        ! NOTE: Homogeneização do gradiente de pressão realizada na configuração de referência do sólido
+       
+        ! NOTE: Pressure Gradient homogenization realized on the solid reference configuration.
         use ModMathRoutines_NEW
 
         !************************************************************************************
@@ -488,47 +483,47 @@ module ModMultiscaleAnalysisBiphasic
             do gp = 1, size(NaturalCoord,dim=1)
 
                ! Fluid Diff Shape Functions  
-               !call ElBiphasic%GetDifShapeFunctions_fluid(NaturalCoord(gp,:) , DifSF )
+               call ElBiphasic%GetDifShapeFunctions_fluid(NaturalCoord(gp,:) , DifSF )
+               !Jacobian
+               JacobX=0.0d0
+               do i=1,DimProb
+                   do j=1,DimProb
+                       do n=1,nNodesFluid
+                           JacobX(i,j)=JacobX(i,j) + DifSf(n,i) * ElBiphasic%ElementNodes(n)%Node%CoordX(j)
+                       enddo
+                   enddo
+               enddo
+                
+               
+               !call this%ElementList(e)%El%GetDifShapeFunctions(NaturalCoord(gp,:) , DifSF )
                !!Jacobian
                !JacobX=0.0d0
                !do i=1,DimProb
                !    do j=1,DimProb
-               !        do n=1,nNodesFluid
-               !            JacobX(i,j)=JacobX(i,j) + DifSf(n,i) * ElBiphasic%ElementNodes(n)%Node%CoordX(j)
+               !        do n=1,nNodesSolid
+               !            JacobX(i,j)=JacobX(i,j) + DifSf(n,i) * this%ElementList(e)%El%ElementNodes(n)%Node%CoordX(j)
                !        enddo
                !    enddo
                !enddo
-                
-                call this%ElementList(e)%El%GetDifShapeFunctions(NaturalCoord(gp,:) , DifSF )
 
-                !Jacobian
-                JacobX=0.0d0
-                do i=1,DimProb
-                    do j=1,DimProb
-                        do n=1,nNodesSolid
-                            JacobX(i,j)=JacobX(i,j) + DifSf(n,i) * this%ElementList(e)%El%ElementNodes(n)%Node%CoordX(j)
-                        enddo
-                    enddo
-                enddo
+               !Determinant of the Jacobian
+               detJX = 0.0d0
+               detJX = det(JacobX)
+               
+               !Get matrix H
+               call ElBiphasic%MatrixH_ThreeDimensional(this%AnalysisSettings, NaturalCoord(gp,:), H, detJ , FactorAxiX)
 
-                !Determinant of the Jacobian
-                detJX = 0.0d0
-                detJX = det(JacobX)
-                
-                !Get matrix H
-                call ElBiphasic%MatrixH_ThreeDimensional(this%AnalysisSettings, NaturalCoord(gp,:), H, detJ , FactorAxiX)
-
-                gradP = matmul(H, Pe)
-                !Get F
-                F = this%ElementList(e)%El%GaussPoints(gp)%F
-                
-                GradPX = 0.0d0
-                call MatrixVectorMultiply ( 'T', F,  gradP, GradPX, 1.0d0, 0.0d0 ) !  y := alpha*op(A)*x + beta*y
+               gradP = matmul(H, Pe)
+               !Get F
+               F = this%ElementList(e)%El%GaussPoints(gp)%F
+               
+               GradPX = 0.0d0
+               call MatrixVectorMultiply ( 'T', F,  gradP, GradPX, 1.0d0, 0.0d0 ) !  y := alpha*op(A)*x + beta*y
             
-                !Homogenized Gradient Pressure
-                !$OMP CRITICAL
-                HomogenizedGradientPressure = HomogenizedGradientPressure + (GradPX*Weight(gp)*detJX*FactorAxiX)/TotalVolX
-                !$OMP END CRITICAL
+               !Homogenized Gradient Pressure
+               !$OMP CRITICAL
+               HomogenizedGradientPressure = HomogenizedGradientPressure + (GradPX*Weight(gp)*detJX*FactorAxiX)/TotalVolX
+               !$OMP END CRITICAL
                 
             enddo
 
@@ -544,7 +539,8 @@ module ModMultiscaleAnalysisBiphasic
     
    !=================================================================================================
    subroutine HomogenizedRelativeVelocitywXBiphasic( this, HomogenizedwX )
-    ! NOTE: Homogeneização da velocidade relativa wX realizada na configuração de referência do sólido
+       
+       ! NOTE: Relative velocity homogenization realized on the solid reference configuration.
        use ModMathRoutines
   
        !************************************************************************************
@@ -630,8 +626,6 @@ module ModMultiscaleAnalysisBiphasic
            ! Fluid number of nodes
            nNodesFluid = ElBiphasic%GetNumberOfNodes_fluid()
            ShapeFunctionsFluid =>  Nf_Memory ( 1:nNodesFluid )
-                   
-           !---------------
   
            ! Retrieving fluid gauss points parameters for numerical integration
            call ElBiphasic%GetGaussPoints_fluid(NaturalCoord,Weight)
@@ -641,11 +635,12 @@ module ModMultiscaleAnalysisBiphasic
   
                w_micro =  ElBiphasic%GaussPoints(gp)%AdditionalVariables%w
                F_micro =  ElBiphasic%GaussPoints(gp)%F
-               J_micro = det(F_micro)
+               J_micro =  det(F_micro)
                wY_micro = 0.0d0
+               ! wY_micro = J_micro * F^-1 * w_micro
                call MatrixVectorMultiply ( 'N', inverse(F_micro),  w_micro, wY_micro, J_micro, 0.0d0 ) !  y := alpha*op(A)*x + beta*y
                
-               ! Obtaining the fluid pressure on the element gauss point (Solid element - Solid integration)
+               ! Obtaining the ShapeFunctionsFluid on gauss point location
                ShapeFunctionsFluid=0.0d0
                call ElBiphasic%GetShapeFunctions_fluid(NaturalCoord(gp,:) , ShapeFunctionsFluid )
                
@@ -752,20 +747,17 @@ module ModMultiscaleAnalysisBiphasic
         
         !************************************************************************************
 
-            ! Identity
-            I3 = 0.0d0
-            I3(1,1) = 1.0d0
-            I3(2,2) = 1.0d0
-            I3(3,3) = 1.0d0
+        ! Identity
+        I3 = 0.0d0
+        I3(1,1) = 1.0d0
+        I3(2,2) = 1.0d0
+        I3(3,3) = 1.0d0
         
         !************************************************************************************
         ! STRESS HOMOGENISATION - FIRST PIOLA
         !************************************************************************************
-        
 
         P => this%P
-        
-        !STOP 'Stress homogenisation need modifications, incorporation of pressure on solid gauss points'
 
         DimProb = this%AnalysisSettings%AnalysisDimension
 
@@ -812,9 +804,7 @@ module ModMultiscaleAnalysisBiphasic
             !Loop over gauss points
             do gp = 1, size(NaturalCoord,dim=1)
 
-
                 call ElBiphasic%GetDifShapeFunctions(NaturalCoord(gp,:) , DifSF )
-
                 !Jacobian
                 JacobX=0.0d0
                 do i=1,DimProb
@@ -885,10 +875,6 @@ module ModMultiscaleAnalysisBiphasic
 
     end subroutine
     !=================================================================================================
-
-
-
-
 
 
 end module

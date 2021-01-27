@@ -135,8 +135,6 @@ module ModMultiscaleBoundaryConditionsBiphasic
 
         Allocate( NodalDispDOF(nActive) , ActiveInitialValue(nActive) , ActiveFinalValue(nActive) )
 
-
-
         !CRIAÇÃO DO VETOR E MONTAGEM DAS CONDIÇÕES DOS GRAUS DE LIBERDADE UTILIZADOS
         do k=1,size(this%NodalMultiscaleDispBC)
 
@@ -449,7 +447,6 @@ module ModMultiscaleBoundaryConditionsBiphasic
         enddo
 
 
-
         !************************************************************************************
 
     end subroutine
@@ -649,8 +646,6 @@ module ModMultiscaleBoundaryConditionsBiphasic
 
     end subroutine
     !=================================================================================================        
-
-
     
     !=================================================================================================
     subroutine GetBCMultiscaleFluidTaylorAndLinear( this, AnalysisSettings, GlobalNodesList, LC, ST, FluxExt, DeltaFluxExt, NodalPresDOF, P, DeltaPPresc )

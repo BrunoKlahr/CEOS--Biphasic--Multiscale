@@ -24,7 +24,7 @@ module ModFEMSystemOfEquationsSolid
     type , extends(ClassNonLinearSystemOfEquations) :: ClassFEMSystemOfEquationsSolid
 
         real(8),dimension(:),allocatable                       :: Fint , Fext , UBar
-        real(8),dimension(:),allocatable                       :: Pfluid     !Global pressure of biphasic material
+        real(8),dimension(:),allocatable                       :: Pfluid     !Global pressure of biphasic analysis
         real(8)                                                :: Time
         integer                      , dimension(:) , pointer  :: DispDOF
 
@@ -95,7 +95,7 @@ module ModFEMSystemOfEquationsSolid
 
         call TangentStiffnessMatrixSolid(this%AnalysisSettings , this%ElementList , this%Pfluid , this%Kg )
 
-        ! As CC de deslocamento prescrito estão sendo aplicadas no sistema Kx=R e não em Kx=-R!!!
+        ! The dirichelet BC (Mechanical -> displacement) are being applied in the system Kx=R and not in Kx = -R
         R = -R
         valor = maxval( dabs(R))
         !call this%BC%ApplyBoundaryConditions(  this%Kg , R , this%DispDOF, this%Ubar , X   )

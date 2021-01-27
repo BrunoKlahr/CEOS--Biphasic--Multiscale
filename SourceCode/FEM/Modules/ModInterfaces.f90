@@ -88,42 +88,6 @@ module ModInterfaces
         !=====================================================================================        
         
         !==========================================================================================
-        !subroutine ApplyBoundaryConditions( Kg , R , Presc_Disp_DOF , Fixed_Disp_DOF , Ubar , U )
-        !
-        !    !************************************************************************************
-        !    ! DECLARATIONS OF VARIABLES
-        !    !************************************************************************************
-        !    ! Modules and implicit declarations
-        !    ! -----------------------------------------------------------------------------------
-        !    use ModGlobalSparseMatrix
-        !    implicit none
-        !
-        !    ! Input variables
-        !    ! -----------------------------------------------------------------------------------
-        !    integer , dimension(:) , intent(in) ::  Presc_Disp_DOF , Fixed_Disp_DOF
-        !
-        !    ! Input/Output variables
-        !    ! -----------------------------------------------------------------------------------
-        !    real(8) , dimension(:) , intent(inout) ::  R  , Ubar , U
-        !    type(ClassGlobalSparseMatrix) :: Kg
-        !
-        !end subroutine
-        !==========================================================================================
-
-        !==========================================================================================
-        !subroutine ExportResultFile( Time , u, nDOFnode, TotalnNodes , ElementList , GiDFile)
-        !    use ModElement
-        !    use GiDResultFile
-        !    implicit none
-        !    type (ClassElementsWrapper) , dimension(:) :: ElementList
-        !    type(ClassGiDResultFile)                                       :: GidFile
-        !    integer :: nDOFnode, TotalnNodes
-        !    real(8) , dimension(:) :: u
-        !    Real(8)::Time
-        !end subroutine
-        !==========================================================================================
-
-        !==========================================================================================
         subroutine SolveConstitutiveModel( ElementList , AnalysisSettings , Time, U, Status)
 
             !************************************************************************************
@@ -233,55 +197,6 @@ module ModInterfaces
         end subroutine
         !==========================================================================================
 
-        !==========================================================================================
-!        subroutine ExternalForce( BC, LC, nSteps, Fext, DeltaFext )
-!
-!            !************************************************************************************
-!            ! DECLARATIONS OF VARIABLES
-!            !************************************************************************************
-!            ! Modules and implicit declarations
-!            ! -----------------------------------------------------------------------------------
-!            use ModBoundaryConditions
-!
-!            implicit none
-!
-!            ! Input variables
-!            ! -----------------------------------------------------------------------------------
-!            type(ClassBoundaryConditions)  , intent(in)  :: BC
-!            integer                        , intent(in)  :: nSteps , LC
-!
-!            ! Output variables
-!            ! -----------------------------------------------------------------------------------
-!            real(8) , dimension(:)  , intent(out)  :: Fext , DeltaFext
-!
-!        end subroutine
-        !==========================================================================================
-
-        !==========================================================================================
-!        subroutine PrescribedDisplacement ( BC , LC , ST, NodalDispDOF, U, DeltaUPresc )
-!
-!            !************************************************************************************
-!            ! DECLARATIONS OF VARIABLES
-!            !************************************************************************************
-!            ! Modules and implicit declarations
-!            ! -----------------------------------------------------------------------------------
-!            use ModBoundaryConditions
-!
-!            implicit none
-!
-!            ! Input variables
-!            ! -----------------------------------------------------------------------------------
-!            type(ClassBoundaryConditions)  :: BC
-!            integer                        :: LC, ST
-!
-!            ! Output variables
-!            ! -----------------------------------------------------------------------------------
-!            real(8) , dimension(:)              :: U, DeltaUPresc
-!            integer , pointer , dimension(:)    :: NodalDispDOF
-!
-!            !************************************************************************************
-!        end subroutine
-        !==========================================================================================
 
         !==========================================================================================
         subroutine TangentStiffnessMatrix( AnalysisSettings , ElementList ,  nDOF, Kg )
@@ -372,7 +287,6 @@ module ModInterfaces
         end subroutine
         !==============================================================================================
 
-
         !==============================================================================================
         subroutine MicroscopicDisplacement ( AnalysisSettings, GlobalNodesList, U, Umicro )
 
@@ -388,36 +302,35 @@ module ModInterfaces
          endsubroutine
         !==============================================================================================
 
-
         !==============================================================================================
-        subroutine MaterialConstructor( Element, ElementList, GlobalNodesList, Material, AnalysisSettings )
+       subroutine MaterialConstructor( Element, ElementList, GlobalNodesList, Material, AnalysisSettings )
+      
+           !************************************************************************************
+           ! DECLARATIONS OF VARIABLES
+           !************************************************************************************
+           ! Modules and implicit declarations
+           ! -----------------------------------------------------------------------------------
+           use ModAnalysis
+           use ModElementLibrary
+           use ModNodes
+           use ModConstitutiveModelLibrary
+      
+           implicit none
+      
+           ! Input variables
+           ! -----------------------------------------------------------------------------------
+           class(ClassElement) , pointer                         :: Element
+           type (ClassElementsWrapper) , pointer , dimension(:)  :: ElementList
+           type(ClassAnalysis)                                   :: AnalysisSettings
+           type(ClassNodes) , dimension(:) , pointer             :: GlobalNodesList
+           class(ClassConstitutiveModelWrapper)  , pointer :: Material
+      
+       end subroutine
+       !==============================================================================================
 
-            !************************************************************************************
-            ! DECLARATIONS OF VARIABLES
-            !************************************************************************************
-            ! Modules and implicit declarations
-            ! -----------------------------------------------------------------------------------
-            use ModAnalysis
-            use ModElementLibrary
-            use ModNodes
-            use ModConstitutiveModelLibrary
-
-            implicit none
-
-            ! Input variables
-            ! -----------------------------------------------------------------------------------
-            class(ClassElement) , pointer                         :: Element
-            type (ClassElementsWrapper) , pointer , dimension(:)  :: ElementList
-            type(ClassAnalysis)                                   :: AnalysisSettings
-            type(ClassNodes) , dimension(:) , pointer             :: GlobalNodesList
-            class(ClassConstitutiveModelWrapper)  , pointer :: Material
-
-        end subroutine
-        !==============================================================================================
-
-        !==============================================================================================
+       !==============================================================================================
         subroutine MaterialConstructorFluid( ElementBiphasic, ElementList, GlobalNodesList, Material, AnalysisSettings )
-
+      
             !************************************************************************************
             ! DECLARATIONS OF VARIABLES
             !************************************************************************************
@@ -427,9 +340,9 @@ module ModInterfaces
             use ModElementLibrary
             use ModNodes
             use ModConstitutiveModelLibrary
-
+      
             implicit none
-
+      
             ! Input variables
             ! -----------------------------------------------------------------------------------
             class(ClassElementBiphasic) , pointer                 :: ElementBiphasic
@@ -437,9 +350,9 @@ module ModInterfaces
             type(ClassAnalysis)                                   :: AnalysisSettings
             type(ClassNodes) , dimension(:) , pointer             :: GlobalNodesList
             class(ClassConstitutiveModelWrapper)  , pointer       :: Material
-
+      
         end subroutine
-        !==============================================================================================
+       !==============================================================================================
 
 
         !==============================================================================================
@@ -522,9 +435,6 @@ module ModInterfaces
 
         end subroutine
         !==============================================================================================
-
-        
-        
 
     end interface
 

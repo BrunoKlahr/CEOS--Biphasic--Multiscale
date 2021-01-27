@@ -52,15 +52,9 @@ module ModElement
             procedure :: DeformationGradient
             procedure :: ElementVolume
             procedure :: ElementInterpolation
-            procedure :: Matrix_Ne_and_Ge
-
-            
+            procedure :: Matrix_Ne_and_Ge  
             procedure :: ElementConstructor
-
-            
-
-
-! TODO (Jan#1#11/08/15): Ver se não vale a pena colocar o atributo "deferred" para as rotinas virtuais (dummy)
+          
 
             !Dummy Procedures: To be used by the superclasses
             !------------------------------------------------------------------------------------
@@ -72,8 +66,6 @@ module ModElement
             procedure :: AllocateGaussPoints
             procedure :: IntegrateLine
             procedure :: GetNodalNaturalCoord
-
-            
 
 
         end type
@@ -100,7 +92,7 @@ module ModElement
             procedure :: GetElementNumberDOF_fluid
             !procedure :: DeformationGradient
             !procedure :: ElementVolume
-            !procedure :: ElementInterpolation
+
             
             ! Fluid
             !------------------------------------------------------------------------------------
@@ -111,7 +103,6 @@ module ModElement
             procedure :: GetProfile_fluid
             procedure :: AllocateGaussPoints_fluid
             procedure :: ElementConstructor => ElementConstructorBiphasic
-            
             procedure :: ElementInterpolation_fluid
             
     endtype    
@@ -158,8 +149,9 @@ module ModElement
     contains
         
         ! -----------------------------------------------------------------------------------
-        ! Subrotina que aponta o objeto ElementBiphasic (type: ClassElementBiphasic)
-        ! para o Element (ClassElement) 
+        ! Subroutine that points the object ElementBiphasic to the Element.
+        ! ElementBiphasic (type: ClassElementBiphasic)
+        ! Element (type: ClassElement (class mother)) 
         subroutine ConvertElementToElementBiphasic(Element,ElementBiphasic)
             class(ClassElement), pointer         :: Element
             class(ClassElementBiphasic), pointer :: ElementBiphasic
@@ -397,7 +389,8 @@ module ModElement
         ! Modifications:
         ! Date:         Author:
         !==========================================================================================
-! TODO (Thiago#1#01/23/15): Criar classe da matriz de rigidez, matriz B e outras que precisarem para evitar comparações internas na rotina local.
+        ! TODO (Thiago#1#01/23/15): Criar classe da matriz de rigidez, matriz B e outras que 
+        ! precisarem para evitar comparações internas na rotina local.
         subroutine ElementStiffnessMatrix( this, Ke, AnalysisSettings )
 
 		    !************************************************************************************
@@ -475,7 +468,7 @@ module ModElement
                 i2 = 4
                 i3 = 5
             else if (AnalysisSettings%Hypothesis == HypothesisOfAnalysis%PlaneStrain) then
-! TODO (Thiago#1#): Verificar o Div para o Plane Strain usando o Mean Dilatation
+            ! TODO (Thiago#1#): Verificar o Div para o Plane Strain usando o Mean Dilatation
                 i1 = 1
                 i2 = 4
                 i3 = 5
@@ -1774,8 +1767,6 @@ module ModElement
                 DifSF(i,:) = matmul( JacobX , DifSF(i,:) )
             enddo
 
-
-
             call this%GetElementNumberDOF(AnalysisSettings,nDOFel)
 
             !Assemble Matrix Npg
@@ -1946,8 +1937,6 @@ module ModElement
             ! ELEMENT VOLUME
 		    !************************************************************************************
 
-
-
             ! Retrieving gauss points parameters for numerical integration
             call this%GetGaussPoints(NaturalCoord,Weight)
 
@@ -1967,7 +1956,6 @@ module ModElement
             !Element Volume
             !Loop over gauss points
             do gp = 1, size(NaturalCoord,dim=1)
-
 
                 call this%GetDifShapeFunctions(NaturalCoord(gp,:) , DifSF )
 

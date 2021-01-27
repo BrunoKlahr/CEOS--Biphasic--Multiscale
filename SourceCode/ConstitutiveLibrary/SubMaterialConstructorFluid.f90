@@ -1,11 +1,9 @@
 !##################################################################################################
 ! This routine constructs the element.
 !--------------------------------------------------------------------------------------------------
-! Date: 2014/02
+! Date: 2020
 !
-! Authors:  Jan-Michel Farias
-!           Thiago Andre Carniel
-!           Paulo Bastos de Castro
+! Authors:  Bruno Klahr
 !!------------------------------------------------------------------------------------------------
 ! Modifications:
 ! Date:         Author:
@@ -21,7 +19,6 @@ subroutine MaterialConstructorFluid( ElementBiphasic, ElementList, GlobalNodesLi
 	use ModElementLibrary
 	use ModNodes
 	use ModConstitutiveModelLibrary
-	use ModElement
     
 	implicit none
 

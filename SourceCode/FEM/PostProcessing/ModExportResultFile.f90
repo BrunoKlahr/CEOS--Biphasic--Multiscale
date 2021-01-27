@@ -19,7 +19,8 @@ module ModExportResultFile
     use ModPostProcessors
     use ModGid
     use ModHyperView
-
+    use ModParser
+    use OMP_LIB
 
     contains
 
@@ -29,15 +30,12 @@ module ModExportResultFile
     subroutine  ReadPostProcessingInputFile(FileName,ProbeList,PostProcessor)
         ! TODO (Thiago#2#): Organizar melhor a lógica de leitura dos Probes.
 
-
         !************************************************************************************
         ! DECLARATIONS OF VARIABLES
         !************************************************************************************
         ! Modules and implicit declarations
         ! -----------------------------------------------------------------------------------
-        use ModParser
         implicit none
-
 
         ! Input variables
         ! -----------------------------------------------------------------------------------
@@ -64,7 +62,7 @@ module ModExportResultFile
         write(*,*) 'Reading Post Processing File: ',trim(FileName)
 
 
-        ! Leitura do Pos Processador
+        ! Pos Processor reading
         !------------------------------------------------------------------------------------
         call File%GetNextString(String)
 
@@ -94,7 +92,6 @@ module ModExportResultFile
                 end if
                 PostProcessorFileName = OptionValue
 
-                ! Constuindo o Pos Processador GiD 7
                 !------------------------------------------------------------------------------------
                 call Constructor_GiD( PostProcessor, PostProcessorResults, PostProcessorFileName )
 
@@ -121,7 +118,7 @@ module ModExportResultFile
                 end if
                 PostProcessorFileName = OptionValue
 
-                ! Constuindo o Pos Processador HiperView 12
+                ! Constructing the HiperView pos processor
                 !------------------------------------------------------------------------------------
                 call Constructor_HyperView( PostProcessor, PostProcessorResults, PostProcessorFileName )
 
@@ -131,7 +128,7 @@ module ModExportResultFile
                     call File%RaiseError('Expecting Word END POST PROCESSOR in '//trim(FileName))
                 end if
 
-            ! Nenhum Pós Processodor
+            ! None pos processor
             !========================================================================================
             elseif ( File%CompareStrings(OptionValue,'None') ) then
 
@@ -149,11 +146,8 @@ module ModExportResultFile
         end if
 
 
-
-
-        !Começo da leitura do arquivo de Probes
+        !Begin of the probes reading
         call File%GetNextOption(OptionName,OptionValue)
-
 
         if (File%CompareStrings(OptionName,'Number of Probes')) then
 
@@ -230,37 +224,38 @@ module ModExportResultFile
 
 
 
-        ! Construtor dos Probes
-        ! Probes de Nós
+        ! Probes constructor
+        ! Node probes
         if (  File%CompareStrings(ProbeLocation, 'Node' ) ) then
 
             call NodeProbeConstructor(ProbeList(i)%Pr, ProbeFileName, ProbeVariableName, ProbeNode, ProbeComponentsString)
 
-        ! Probes de Pontos de Gauss
+        ! Gauss points probes
         elseif (  File%CompareStrings(ProbeLocation, 'Gauss Point' ) ) then
 
             call GaussPointProbeConstructor(ProbeList(i)%Pr, ProbeVariableName, ProbeElement, ProbeFileName, ProbeGaussPoint, ProbeComponentsString)
 
-        ! Probes de Forças Nodais
+        ! Nodal force probes
         elseif (  File%CompareStrings(ProbeLocation, 'Nodal Force' ) ) then
 
             call NodalForceProbeConstructor(ProbeList(i)%Pr, ProbeHyperMeshFile, ProbeFileName, ProbeLoadCollector, ProbeComponentsString)
 
-        ! Probes de Micro Estrutura
+        ! Microstructure probes
         elseif (  File%CompareStrings(ProbeLocation, 'Micro Structure' ) ) then
 
             call MicroStructureProbeConstructor(ProbeList(i)%Pr, ProbeVariableName, ProbeFileName, ProbeComponentsString)
         
-        ! Probes de Micro Estrutura análise bifásica
+        ! Biphasic microstructure probes
         elseif (  File%CompareStrings(ProbeLocation, 'Micro Structure Biphasic' ) ) then
 
             call MicroStructureBiphasicProbeConstructor(ProbeList(i)%Pr, ProbeVariableName, ProbeFileName, ProbeComponentsString)
 
-        ! Probes de Macro Estrutura
+        ! Macrostructure probes
         elseif (  File%CompareStrings(ProbeLocation, 'Macro Structure' ) ) then
 
             call MacroStructureProbeConstructor(ProbeList(i)%Pr, ProbeVariableName, ProbeFileName, ProbeComponentsString)
-
+        else
+            stop 'Error in ReadPostProcessingInputFile - ProbleLocation - not identified'
         endif
 
     end do
@@ -269,8 +264,6 @@ module ModExportResultFile
 
     end subroutine
     !==========================================================================================
-
-
 
     !==========================================================================================
     ! Subroutine Description:
@@ -310,7 +303,7 @@ module ModExportResultFile
 
         write(*,*) 'Post Processing Results...'
 
-        ! Analisar se existem os arquivos dos probes pedidos. Caso existam, são deletados
+        ! Initialization probes files
         do i = 1, size(ProbeList)
             call ProbeList(i)%Pr%InitializeFile
         enddo
@@ -395,20 +388,18 @@ module ModExportResultFile
             FEA%LoadCase = LoadCase
             FEA%Time = Time
             FEA%U => U
-            ! Update stress and internal variables
+           
             
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            !!!!   Troca da ordem na atualização das coordenadas - Bruno 02/08
+            !----------------------------------------------------------------------------------------------
             ! Update Coordinates
             if (FEA%AnalysisSettings%NLAnalysis == .true.) then
                 call UpdateMeshCoordinates(FEA%GlobalNodesList,FEA%AnalysisSettings,U)
             endif
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            !----------------------------------------------------------------------------------------------
+            ! Update stress and internal variables
             call SolveConstitutiveModel( FEA%ElementList , FEA%AnalysisSettings, Time, U, Status)
 
-            ! Escrevendo os pontos pedidos. Excluindo soluções dos Cut Backs.
+            ! Writing the required points. The cut backs solution are exclude
             if (Flag_EndStep .eq. 1) then
                 do i = 1, size(ProbeList)
                     call ProbeList(i)%Pr%WriteProbeResult(FEA)
@@ -427,13 +418,6 @@ module ModExportResultFile
                 enddo
             enddo
 
-            ! Update Coordinates
-            !if (FEA%AnalysisSettings%NLAnalysis == .true.) then
-            !    call UpdateMeshCoordinates(FEA%GlobalNodesList,FEA%AnalysisSettings,U)
-            !endif
-
-
-
         enddo LOOP_TIME
 
         call ResultFile%CloseFile
@@ -442,7 +426,6 @@ module ModExportResultFile
 
     end subroutine
     !==========================================================================================
-
 
     !==========================================================================================
     ! Subroutine Description:
@@ -544,7 +527,6 @@ module ModExportResultFile
         OldASolid = 0.0d0
         ASolid = 0.0d0
         
-        
  
         ! Calling the additional material routine, which defines the orientation of the fibers, when necessary
         if(FEA%AnalysisSettings%FiberReinforcedAnalysis) then
@@ -609,17 +591,19 @@ module ModExportResultFile
 
             NumberOfIterations = OptionValue
 
+            ! U -> Solid nodes displacement
             do i = 1, TotalNDOF_Solid
                 call ResultFileSolid%GetNextString(String)
                 U(i) = String
             enddo
             
-            ! P -> pressão nos nós do fluido
+            ! P -> fluid nodes pressure
             do i = 1, TotalNDOF_Fluid
                 call ResultFileFluid%GetNextString(String)
                 P(i) = String
             enddo
 
+            ! PSolid -> Solid nodes pressure (Interpolation from fluid nodes pressure)
             IF(InterpolatePressure) THEN
                 call InterpolatePFluidToPSolid(FEA, P , Psolid)
             ENDIF
@@ -627,11 +611,11 @@ module ModExportResultFile
             FEA%LoadCase = LoadCase
             FEA%Time = Time
             FEA%U => U
-            FEA%P => P            ! Pressão original nos nós de pressão
-            FEA%Psolid => Psolid  ! É necessário fazer uma conta para obter pressão em todos os nós do sólido
+            FEA%P => P            
+            FEA%Psolid => Psolid  
             
             
-            ! Update the Solid Velocity via diferenças finitas
+            ! Update the Solid Velocity Back Euler finite differences
             DeltaTime = Time - OldTime
             if (DeltaTime>0.0d0) then
                 call ComputeVelocity(DeltaTime, OldU, U, OldVSolid, VSolid, OldASolid, ASolid)
@@ -640,24 +624,25 @@ module ModExportResultFile
             
             ! Update stress and internal variables
             
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            !!!!   Troca da ordem na atualização das coordenadas - Bruno 02/08
+            !-------------------------------------------------------------------------------------------
             ! Update Coordinates
             if (FEA%AnalysisSettings%NLAnalysis == .true.) then
                 call UpdateMeshCoordinates(FEA%GlobalNodesList,FEA%AnalysisSettings,U)
             endif
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            !-------------------------------------------------------------------------------------------
+
+            ! Update stress and internal variables
             call SolveConstitutiveModel( FEA%ElementList , FEA%AnalysisSettings, Time, U, Status)
             
+            ! Update fluid stress on solid gauss points
             call SolveFluidCauchyStress( FEA%ElementList , FEA%AnalysisSettings, Time, P, Status)
             
+            ! Update the relative velocity w
             IF (CalulaRelativeVelocity) THEN
                 call SolveVelocidadeRelativaW( FEA%ElementList , FEA%AnalysisSettings, Time, P, Status)
             ENDIF
             
-            ! Escrevendo os pontos pedidos. Excluindo soluções dos Cut Backs.
+            ! Writing the required points. The cut backs solution are exclude.
             if (Flag_EndStep .eq. 1) then
                 do i = 1, size(ProbeList)
                     call ProbeList(i)%Pr%WriteProbeResult(FEA)
@@ -676,12 +661,8 @@ module ModExportResultFile
                 enddo
             enddo
 
-            ! Update Coordinates
-            !if (FEA%AnalysisSettings%NLAnalysis == .true.) then
-            !    call UpdateMeshCoordinates(FEA%GlobalNodesList,FEA%AnalysisSettings,U)
-            !endif
 
-            ! Atualizar variáveis para o calculo da VSolid
+            ! Update the variables used in VSolid computation
             OldTime = Time
             OldU = U
             OldVSolid = VSolid
@@ -698,7 +679,6 @@ module ModExportResultFile
     !==========================================================================================
 
     !==========================================================================================
-    ! Paralelizado
     subroutine InterpolatePFluidToPSolid(FEA, P,Psolid)
    
        !************************************************************************************
@@ -706,9 +686,7 @@ module ModExportResultFile
        !************************************************************************************
        ! Modules and implicit declarations
        ! -----------------------------------------------------------------------------------
-       use OMP_LIB
        implicit none
-   
    
        ! Input variables
        ! -----------------------------------------------------------------------------------  
@@ -732,6 +710,7 @@ module ModExportResultFile
        real(8), dimension(3)                           :: NaturalCoord
        
        TotalNDOF_Solid = size(Psolid)
+       ! Points the object ElBiphasic to the ElementList(e)%El. The ElBiphasic gets the class ClassElementBIphasic.
        call ConvertElementToElementBiphasic(FEA%ElementList(1)%El,  ElBiphasic)
        call ElBiphasic%GetElementNumberDOF_fluid(FEA%AnalysisSettings, nDOFel_fluid)
        
@@ -740,23 +719,111 @@ module ModExportResultFile
        ! Allocating NodalNaturalCoord
        allocate(NodalNaturalCoord(DimProb,nNodesSolid))
        NodalNaturalCoord = 0.0d0
+       ! Obtaining the nodal natural coordinates from the element
        call ElBiphasic%GetNodalNaturalCoord(NodalNaturalCoord)
+          
+       !---------------------------------------------------------------------------------
        
-        ! Definindo o vetor de NaturalCoord para os nós do T10
-        !NodalNaturalCoordT10 = 0.0d0
-        !NodalNaturalCoordT10(1,2)=1.0d0
-        !NodalNaturalCoordT10(2,3)=1.0d0
-        !NodalNaturalCoordT10(3,4)=1.0d0
-        !NodalNaturalCoordT10(1,5)=0.5d0
-        !NodalNaturalCoordT10(1,6)=0.5d0
-        !NodalNaturalCoordT10(2,6)=0.5d0
-        !NodalNaturalCoordT10(2,7)=0.5d0
-        !NodalNaturalCoordT10(3,8)=0.5d0
-        !NodalNaturalCoordT10(1,9)=0.5d0
-        !NodalNaturalCoordT10(3,9)=0.5d0
-        !NodalNaturalCoordT10(2,10)=0.5d0
-        !NodalNaturalCoordT10(3,10)=0.5d0
+       NumberOfThreads = omp_get_max_threads()
+               
+       call omp_set_num_threads( NumberOfThreads )
+          
+       !$OMP PARALLEL DEFAULT(PRIVATE)                                &
+                      Shared( FEA, P, Psolid, NodalNaturalCoord)           
+                      !Private( i, j, k, Elem )                        &
+                      !FirstPrivate ( )
+   
+       !$OMP DO
+       
+       do i=1, size(FEA%GlobalNodesList)
+           
+           if (FEA%GlobalNodesList(i)%IDFluid .ne. 0) then
+                   Psolid(i) = P(FEA%GlobalNodesList(i)%IDFluid)
+           else
+               do j=1, size(FEA%ElementList)
+                   
+                   do k=1, size(FEA%ElementList(j)%El%ElementNodes)
+                   
+                       if (i .eq. FEA%ElementList(j)%El%ElementNodes(k)%Node%ID) then
+                           Elem = j
+                           exit
+                       end if   
+                   end do
+                   if (k .ne. size(FEA%ElementList(j)%El%ElementNodes)+1) then
+                       exit
+                   end if   
+               end do
+               
     
+               call ConvertElementToElementBiphasic(FEA%ElementList(Elem)%El,  ElBiphasic) 
+               Pe => Pe_Memory(1:nDOFel_fluid)
+               GM_fluid => GMfluid_Memory(1:nDOFel_fluid)
+               Pe = 0.0d0
+   
+               call ElBiphasic%GetGlobalMapping_fluid(FEA%AnalysisSettings, GM_fluid)
+               Pe = P(GM_fluid)
+         
+               NaturalCoord = NodalNaturalCoord(:,k)
+   
+               call ElBiphasic%ElementInterpolation_fluid(Pe, NaturalCoord, Pinterpolated)
+               Psolid(i) = Pinterpolated
+               
+           endif
+           
+       end do
+       !$OMP END DO
+       !$OMP END PARALLEL
+       !---------------------------------------------------------------------------------
+        
+        
+    end subroutine
+    !==========================================================================================
+
+    !==========================================================================================
+    subroutine InterpolatePFluidToPSolidMediaVolume(FEA, P,Psolid)
+   
+        !************************************************************************************
+        ! DECLARATIONS OF VARIABLES
+        !************************************************************************************
+        ! Modules and implicit declarations
+        ! -----------------------------------------------------------------------------------
+        implicit none
+        
+        
+        ! Input variables
+        ! -----------------------------------------------------------------------------------  
+        class (ClassFEMAnalysis)                        :: FEA
+        real(8) , dimension(:)                          :: P
+            
+        ! Output variables
+        ! -----------------------------------------------------------------------------------  
+        real(8) , dimension(:)                          :: Psolid
+        
+        ! Inernal variables
+        class(ClassElementBiphasic), pointer            :: ElBiphasic
+        integer                                         :: TotalNDOF_Solid, nDOFel_fluid
+        integer                                         :: i, j, k, Elem,  NumberOfThreads
+        integer                                         :: DimProb, nNodesSolid
+        real(8)                                         :: Pinterpolated
+        real(8) , pointer , dimension(:)                :: Pe
+        integer , pointer , dimension(:)                :: GM_fluid
+        real(8), allocatable, dimension(:,:)            :: NodalNaturalCoord
+        real(8), dimension(3)                           :: NaturalCoord
+        real(8)                                         :: VolumeElement, TotalVolumeNo
+        integer                                         :: ContaElemento
+        
+        TotalNDOF_Solid = size(Psolid)
+        call ConvertElementToElementBiphasic(FEA%ElementList(1)%El,  ElBiphasic)
+        call ElBiphasic%GetElementNumberDOF_fluid(FEA%AnalysisSettings, nDOFel_fluid)
+        
+        DimProb = FEA%AnalysisSettings%AnalysisDimension
+        nNodesSolid =ElBiphasic%GetNumberOfNodes()
+        ! Allocating NodalNaturalCoord
+        allocate(NodalNaturalCoord(DimProb,nNodesSolid))
+        NodalNaturalCoord = 0.0d0
+        call ElBiphasic%GetNodalNaturalCoord(NodalNaturalCoord)
+        PSolid = 0.0d0
+          
         !---------------------------------------------------------------------------------
         
         NumberOfThreads = omp_get_max_threads()
@@ -772,6 +839,8 @@ module ModExportResultFile
         
         do i=1, size(FEA%GlobalNodesList)
             
+            TotalVolumeNo = 0.0d0
+            ContaElemento = 0.0d0
             if (FEA%GlobalNodesList(i)%IDFluid .ne. 0) then
                     Psolid(i) = P(FEA%GlobalNodesList(i)%IDFluid)
             else
@@ -781,29 +850,30 @@ module ModExportResultFile
                     
                         if (i .eq. FEA%ElementList(j)%El%ElementNodes(k)%Node%ID) then
                             Elem = j
-                            exit
+                            ! Points the object ElBiphasic to the ElementList(e)%El. The ElBiphasic gets the class ClassElementBIphasic.
+                            call ConvertElementToElementBiphasic(FEA%ElementList(Elem)%El,  ElBiphasic)
+                            
+                            VolumeElement = ElBiphasic%Volume
+                            TotalVolumeNo = TotalVolumeNo + VolumeElement
+                            ContaElemento = ContaElemento + 1
+                            call ElBiphasic%GetElementNumberDOF_fluid(FEA%AnalysisSettings, nDOFel_fluid)
+                            Pe => Pe_Memory(1:nDOFel_fluid)
+                            GM_fluid => GMfluid_Memory(1:nDOFel_fluid)
+                            Pe = 0.0d0
+   
+                            call ElBiphasic%GetGlobalMapping_fluid(FEA%AnalysisSettings, GM_fluid)
+                            Pe = P(GM_fluid)
+          
+                            NaturalCoord = NodalNaturalCoord(:,k)
+   
+                            call ElBiphasic%ElementInterpolation_fluid(Pe, NaturalCoord, Pinterpolated)
+                            Psolid(i) = Psolid(i) + Pinterpolated*VolumeElement
+
                         end if   
                     end do
-                    if (k .ne. size(FEA%ElementList(j)%El%ElementNodes)+1) then
-                        exit
-                    end if   
+ 
                 end do
-                
-    
-                call ConvertElementToElementBiphasic(FEA%ElementList(Elem)%El,  ElBiphasic) ! Aponta o objeto ElBiphasic para o ElementList(e)%El mas com o type correto ClassElementBiphasic
-                call ElBiphasic%GetElementNumberDOF_fluid(FEA%AnalysisSettings, nDOFel_fluid)
-                Pe => Pe_Memory(1:nDOFel_fluid)
-                GM_fluid => GMfluid_Memory(1:nDOFel_fluid)
-                Pe = 0.0d0
-   
-                call ElBiphasic%GetGlobalMapping_fluid(FEA%AnalysisSettings, GM_fluid)
-                Pe = P(GM_fluid)
-          
-                NaturalCoord = NodalNaturalCoord(:,k)
-   
-                call ElBiphasic%ElementInterpolation_fluid(Pe, NaturalCoord, Pinterpolated)
-                Psolid(i) = Pinterpolated
-                
+                Psolid(i) = Psolid(i)/TotalVolumeNo                
             endif
             
         end do
@@ -815,6 +885,7 @@ module ModExportResultFile
         
         
     end subroutine
+    !==========================================================================================
     
     !==========================================================================================
     subroutine SolveVelocidadeRelativaW( ElementList , AnalysisSettings, Time, P, Status)
@@ -853,15 +924,14 @@ module ModExportResultFile
   
 
         !************************************************************************************
-
-        !************************************************************************************
         ! COMPUTING RELATIVE VELOCITY
         !************************************************************************************
 
         !$OMP PARALLEL DEFAULT(PRIVATE) FIRSTPRIVATE(Status) SHARED(ElementList, AnalysisSettings, P, Time)
         !$OMP DO
         do e = 1 , size(ElementList)
-            call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) ! Aponta o objeto ElBiphasic para o ElementList(e)%El mas com o type correto ClassElementBiphasic
+            ! Points the object ElBiphasic to the ElementList(e)%El. The ElBiphasic gets the class ClassElementBIphasic.
+            call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) 
             call ElBiphasic%GetElementNumberDOF_fluid(AnalysisSettings, nDOFel_fluid)
             GM_fluid => GMfluid_Memory(1:nDOFel_fluid)
             Pe => Pe_Memory(1:nDOFel_fluid)
@@ -895,7 +965,8 @@ module ModExportResultFile
         !$OMP END PARALLEL
 
     end subroutine
-
+    !==========================================================================================
+    
     !==========================================================================================
     subroutine SolveFluidCauchyStress( ElementList , AnalysisSettings, Time, P, Status)
 
@@ -931,14 +1002,12 @@ module ModExportResultFile
         real(8) , dimension(:)   , pointer   :: ShapeFunctionsFluid
         real(8)							     :: I6(6)
         integer                              :: nNodesFluid
-  
-
-        !************************************************************************************
 
         !************************************************************************************
         ! COMPUTING FLUID CAUCHY STRESS
         !************************************************************************************
         
+        ! Define the voigt identity
         I6 = 0.0d0
         I6(1:3) = 1.0d0
         
@@ -949,7 +1018,8 @@ module ModExportResultFile
         !$OMP PARALLEL DEFAULT(PRIVATE) FIRSTPRIVATE(Status) SHARED(ElementList, AnalysisSettings, P, Time, I6)
         !$OMP DO
         do e = 1 , size(ElementList)
-            call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) ! Aponta o objeto ElBiphasic para o ElementList(e)%El mas com o type correto ClassElementBiphasic
+            ! Points the object ElBiphasic to the ElementList(e)%El. The ElBiphasic gets the class ClassElementBIphasic.
+            call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) 
             call ElBiphasic%GetElementNumberDOF_fluid(AnalysisSettings, nDOFel_fluid)
             GM_fluid => GMfluid_Memory(1:nDOFel_fluid)
             Pe => Pe_Memory(1:nDOFel_fluid)
@@ -977,7 +1047,6 @@ module ModExportResultFile
         !$OMP END PARALLEL
 
     end subroutine
-    
     !==========================================================================================
     
 end module

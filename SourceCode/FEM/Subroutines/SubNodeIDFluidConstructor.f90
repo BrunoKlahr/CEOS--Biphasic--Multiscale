@@ -17,11 +17,8 @@ subroutine NodeIDFluidConstructor( ElementList, GlobalNodesList )
     !************************************************************************************
     ! Modules and implicit declarations
     ! -----------------------------------------------------------------------------------
-    use ModAnalysis
     use ModElementLibrary
-    use ModInterfaces
     use ModNodes
-
 
     implicit none
 
@@ -32,7 +29,7 @@ subroutine NodeIDFluidConstructor( ElementList, GlobalNodesList )
 
     ! Output variables
     ! -----------------------------------------------------------------------------------
-    !GlobalNodeList%IDFluid
+    ! GlobalNodeList%IDFluid
 
     ! Internal variables
     ! -----------------------------------------------------------------------------------
@@ -47,15 +44,16 @@ subroutine NodeIDFluidConstructor( ElementList, GlobalNodesList )
     allocate( jVetor(size(ElementList)*4))
     jVetor = 0.0d0
     do e = 1, size(ElementList)
-        call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) ! Aponta o objeto ElBiphasic para o ElementList(e)%El mas com o type correto ClassElementBiphasic
+        ! Points the object ElBiphasic to the ElementList(e)%El. The ElBiphasic gets the class ClassElementBIphasic.
+        call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) 
         nNodes_fluid = ElBiphasic%GetNumberOfNodes_fluid()
         do i = 1, nNodes_fluid
-            j = ElBiphasic%ElementNodes_fluid(i)%Node%ID  ! ID Global do nó 
+            j = ElBiphasic%ElementNodes_fluid(i)%Node%ID  ! ID Global of the node 
             jVetor(i1) = j
             s=1  
             Flag=1
             do while ( s .LT. i1)
-                if (j .eq. jVetor(s)) then ! Procura se o nó j já foi adicionado como um nó de fluido
+                if (j .eq. jVetor(s)) then ! Search if the node j was already defined as a Fluid node
                     Flag = 0
                     s=i1                  
                 endif
@@ -68,7 +66,6 @@ subroutine NodeIDFluidConstructor( ElementList, GlobalNodesList )
             endif                    
         enddo    
     enddo
-    
     !************************************************************************************
 
 end subroutine

@@ -137,7 +137,7 @@ module ModHyperView
                     
 
                 case (VariableNames%CauchyStress)
-! TODO (Thiago#2#): O HyperView lê os resultados nos pontos de gauss segundo a conectividade dos nós. 
+                    ! TODO (Thiago#2#): O HyperView lê os resultados nos pontos de gauss segundo a conectividade dos nós. 
                     !Implementado somente para elementos com a mesma quantidade de nós e pontos de gauss.
 
 
@@ -224,9 +224,6 @@ module ModHyperView
                     deallocate(GaussPointlValues, Conec)
 
                  case (VariableNames%BiphasicTotalCauchyStress)
-                    ! TODO (Thiago#2#): O HyperView lê os resultados nos pontos de gauss segundo a conectividade dos nós. 
-                    !Implementado somente para elementos com a mesma quantidade de nós e pontos de gauss.
-
 
                     nelem = size( FEA%ElementList )
                     ngp = size(FEA%ElementList(1)%el%GaussPoints)
@@ -265,31 +262,30 @@ module ModHyperView
                     GaussPointlValues = 0.0d0
                     Conec = 0
 
-       
-                    !8888888888888888888888888888888888888888888888888888888888888888888
                     do e=1,nelem
                             
                         do gp=1,ngp
                                 
                                 GaussPoint => FEA%ElementList(e)%El%GaussPoints(gp)
                                 
-                                UD_ID = 0 !Pegar o numero de variaveis implementadas no ponto de Gauss                         
+                                UD_ID = 0   
+                                ! Get the number of variables implemented on the gauss point
                                 call GaussPoint%GetResult( UD_ID, UD_Name, UD_Length, UD_Variable, UD_VariableType )                               
                               
-                                !Loop sobre as numero de variaveis do ponto de gauss
+                                ! Iteration loop on the number of variables on the gauss points
                                 FoundUserVariable = .false.
                                 LOOP_USER_DEFINED: do UD_ID = 1,UD_Length
                                 
-                                    !Acessando o Ponto de Gauss para obter o nome das variáveis
+                                    ! Accessing the gauss point to get the name of the variables
                                     call GaussPoint%GetResult( UD_ID, UD_Name, UD_Length, UD_Variable, UD_VariableType ) 
                                     
-                                    !Encontrar a variável que o usuário quer
+                                    ! Found the variable that the user want
                                     FoundUserVariable = Comp%CompareStrings( this%VariableNames(v),UD_Name)
                                 
                                     if (FoundUserVariable) then  
-                                        ! Armazenando a variável
+                                         ! Storing the variable
                                         GaussPointlValues(e,gp,1:UD_Length) = UD_Variable(1:UD_Length)
-                                        ! Armazendo o tipo e tamanho de variável para a rotina de exportação
+                                        ! Stoting the type and the size of the variable to the writing subroutine
                                         VariableType = UD_VariableType
                                         VariableLength = UD_Length
                                     endif
@@ -313,7 +309,6 @@ module ModHyperView
                         
                     deallocate(GaussPointlValues, Conec)
                         
-                    !888888888888888888888888888888888888888888888888888888888888888888888888888
                     
                     ! só funciona se todos os materiais tiverem as mesmas variaveis nos pontos de gauss
                     !GaussPoint => FEA%ElementList(1)%El%GaussPoints(1)
@@ -371,8 +366,6 @@ module ModHyperView
     end subroutine
     !************************************************************************************
 
-
-
     !************************************************************************************
     subroutine Constructor_HyperView( PostProcessor, PostProcessorResults, PostProcessorFileName )
 
@@ -407,12 +400,9 @@ module ModHyperView
     end subroutine
     !************************************************************************************
 
-
-
-
-        ! Export Results on Nodes - HyperView
-        !----------------------------------------------------------------------------------------
-        subroutine ExportOnNodesHV( this , Name , LoadCaseChar, Time , Variable , VariableType)
+    ! Export Results on Nodes - HyperView
+    !************************************************************************************
+    subroutine ExportOnNodesHV( this , Name , LoadCaseChar, Time , Variable , VariableType)
 
             implicit none
 
@@ -484,13 +474,11 @@ module ModHyperView
 
 
         end subroutine
-        
-       
+    !************************************************************************************   
 
-
-        ! Export Results on GaussPoints - HyperView
-        !----------------------------------------------------------------------------------------
-        subroutine ExportOnGaussPointsHV( this ,  Name , LoadCaseChar, Time, Conec, Variable, VariableType )
+    ! Export Results on GaussPoints - HyperView
+    !************************************************************************************ 
+    subroutine ExportOnGaussPointsHV( this ,  Name , LoadCaseChar, Time, Conec, Variable, VariableType )
 
             implicit none
             class(ClassHyperView) :: this
@@ -552,9 +540,9 @@ module ModHyperView
             write(FileNumber,'(a)') adjustl( '$RESULT_TYPE = '//trim(Name)//trim(DataType) )
             write(FileNumber,'(a)') adjustl( '$SYS_ID = 1' )
             write(FileNumber,'(a,1X,E16.9,a)') adjustl('$TIME  = '),Time,' sec'
-            ! NOTE (Thiago#1#): SYS_ID = 1 exporta os resultados no sistema global da análise.
+            ! NOTE (Thiago#1#): SYS_ID = 1 export the results on the global system of the analysis
 
-! TODO (Thiago#1#): HyperView - Resultados nos pontos de gauss coerentes com ordenação dos elementos em ordem crescente.
+            ! TODO (Thiago#1#): HyperView - Gauss points results are consistent with the ordering of the elements in ascending order.
             do e=1,size(Variable,1)
                 do gp=1,size(Variable,2)
                     write(FileNumber,'(I0,(1X,I0),'//trim(Form)//',A)') e , Conec(e,gp),  (Variable(e,gp,j) , j=1,nComponents) , trim(Complement)
@@ -562,7 +550,7 @@ module ModHyperView
             enddo
 
         end subroutine
-
+    !************************************************************************************ 
 
 end module
 

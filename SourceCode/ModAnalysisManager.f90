@@ -8,7 +8,7 @@
 !           Paulo Bastos de Castro
 !!------------------------------------------------------------------------------------------------
 ! Modifications:
-! Date:         Author:
+! Date:  2020/2021       Author: Bruno Klahr
 !##################################################################################################
 module ModAnalysisManager
 
@@ -18,9 +18,7 @@ module ModAnalysisManager
     use ModAnalysis
     use ModFEMAnalysisBiphasic
   
-
     contains
-
 
     subroutine ReadAndCreateAnalysis(Analysis, FileName)
 
@@ -47,7 +45,7 @@ module ModAnalysisManager
         !************************************************************************************
 
         !************************************************************************************
-        ! SELECT PARAMETERS OF THE analysis type
+        ! SELECT PARAMETERS OF THE ANALYSIS TYPE
         !************************************************************************************
 
         allocate(AnalysisSettings)
@@ -56,8 +54,10 @@ module ModAnalysisManager
         !************************************************************************************
         call ReadInputFile( FileName, AnalysisSettings , GlobalNodesList , ElementList , &
                             BC , NLSolver )
-
-
+        !************************************************************************************
+        
+        
+        ! Definig and allocating the analysis
         if (AnalysisSettings%ProblemType .eq. ProblemTypes%Mechanical) then
             if (AnalysisSettings%MultiscaleAnalysis) then
                 allocate( ClassMultiscaleAnalysis :: Analysis)

@@ -1,10 +1,20 @@
+!##################################################################################################
+! This module has a Probe ans pos-process variables definitions
+!--------------------------------------------------------------------------------------------------
+! Date: 2014/02
+!
+! Authors:  Jan-Michel Farias
+!           Thiago Andre Carniel
+!           Paulo Bastos de Castro
+!!------------------------------------------------------------------------------------------------
+! Modifications:
+! Date: 2019/20/21 (Biphasic Analysis)         Author: Bruno Klahr 
+!##################################################################################################
 module ModProbe
 
     use ModTools
     
     implicit none
-
-
 
     ! Enumerators
     !----------------------------------------------------------------------------------------------
@@ -164,9 +174,7 @@ module ModProbe
             enu = VariableNames%UserDefined
         ENDIF
     end function
-!==========================================================================================
-
-
+    !==========================================================================================
 
 
     !==========================================================================================
@@ -205,7 +213,6 @@ module ModProbe
     end subroutine
     !==========================================================================================
 
-
     !==========================================================================================
     subroutine WriteOnFile_Char(this , string )
             class(ClassProbe) :: this
@@ -217,6 +224,7 @@ module ModProbe
             close(FileNumber)
     end subroutine
     !==========================================================================================
+    
     !==========================================================================================
     subroutine WriteOnFile_Value(this , Time , Values )
             class(ClassProbe) :: this
@@ -228,7 +236,7 @@ module ModProbe
             write(CharFormat , '(A,I2,A)') '(' , size(Values) + 1 , '(E23.15,1x))'
             FileNumber = 33
             open( FileNumber, file=this%FileName, Access='append', status='unknown') !Create the string format
-                write(FileNumber , CharFormat) Time , (Values(i),i=1,size(Values)) !Export the result
+                write(FileNumber , CharFormat) Time , (Values(i),i=1,size(Values))   !Export the result
             close(FileNumber)
     end subroutine
     !==========================================================================================
@@ -693,8 +701,6 @@ module ModProbe
     end subroutine
     !==========================================================================================
     
-    
-    
     !==========================================================================================
     subroutine MacroStructureProbeConstructor (Probe, Variable, FileName, ComponentsString)
 
@@ -847,7 +853,6 @@ module ModProbe
     end subroutine
     !==========================================================================================
 
-
     !==========================================================================================
     subroutine WriteProbeResult_NodalForce(this,FEA)
 
@@ -932,8 +937,6 @@ module ModProbe
 
     end subroutine
     !==========================================================================================
-
-
 
     !==========================================================================================
     subroutine WriteProbeResult_MicroStructure(this,FEA)
@@ -1079,8 +1082,7 @@ module ModProbe
     end subroutine
     !==========================================================================================
 
-    
-        !==========================================================================================
+    !==========================================================================================
     subroutine WriteProbeResult_MicroStructureBiphasic(this,FEA)
 
             ! Modules and implicit declarations
@@ -1128,7 +1130,7 @@ module ModProbe
             real(8)                                 :: HomogenizedPressure, HomogenizedPressureWrite(1)
             real(8)                                 :: HomogenizedGradientPressure(3), HomogenizedwX(3)
             !************************************************************************************
-            ! Teste se probe esta ativo
+            ! Test if the probe is active
             if (.not. this%Active) then
                 return
             endif
@@ -1256,7 +1258,6 @@ module ModProbe
     end subroutine
     !==========================================================================================
     
-    
     !==========================================================================================
     subroutine WriteProbeResult_MacroStructure(this,FEA)
 
@@ -1294,11 +1295,9 @@ module ModProbe
             endif
 
             call Comp%Setup()
-
    
             select case (this%VariableNameID)
    
-                
    
                 ! Writing Total Volume
                 case (VariableNames%Total_Volume)

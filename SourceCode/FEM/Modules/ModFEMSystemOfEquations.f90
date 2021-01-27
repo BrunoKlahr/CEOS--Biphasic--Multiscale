@@ -92,7 +92,7 @@ module ModFEMSystemOfEquations
 
         call TangentStiffnessMatrix(this%AnalysisSettings , this%ElementList , nDOF, this%Kg )
 
-        ! As CC de deslocamento prescrito estão sendo aplicadas no sistema Kx=R e não em Kx=-R!!!
+        ! The dirichelet BC (Mechanical -> displacement) are being applied in the system Kx=R and not in Kx = -R
         R = -R
         !call this%BC%ApplyBoundaryConditions(  this%Kg , R , this%DispDOF, this%Ubar , X   )
         call this%BC%ApplyBoundaryConditionsNEW(  this%Kg , R , this%DispDOF, this%Ubar , X, this%PrescDispSparseMapZERO, this%PrescDispSparseMapONE, this%FixedSupportSparseMapZERO, this%FixedSupportSparseMapONE )

@@ -23,15 +23,13 @@ module ModFEMSystemOfEquationsFluid
 
     type , extends(ClassNonLinearSystemOfEquations) :: ClassFEMSystemOfEquationsFluid
 
-        real(8),dimension(:),allocatable                       :: Fint , Fext , PBar  !(Pbar = Ubar)
-        real(8),dimension(:),allocatable                       :: VSolid ! Global solid velocity
+        real(8),dimension(:),allocatable                       :: Fint , Fext , PBar  !(Pbar ~~ Ubar)
+        real(8),dimension(:),allocatable                       :: VSolid              ! Global solid velocity
         real (8)                                               :: Time
         integer                      , dimension(:) , pointer  :: PresDOF
 
         integer, dimension(:), allocatable                     :: PrescPresSparseMapZERO
         integer, dimension(:), allocatable                     :: PrescPresSparseMapONE
-       !integer, dimension(:), allocatable                     :: FixedSupportSparseMapZERO ! Não existe para o fluído
-       !integer, dimension(:), allocatable                     :: FixedSupportSparseMapONE  ! Não existe para o fluído   
 
         type (ClassElementsWrapper)  , dimension(:) , pointer  :: ElementList
         type (ClassNodes)            , dimension(:) , pointer  :: GlobalNodesList
@@ -56,15 +54,10 @@ module ModFEMSystemOfEquationsFluid
         class(ClassFEMSystemOfEquationsFluid) :: this
         real(8),dimension(:) :: X,R
 
-            ! Update stress and internal variables ***********************************************************
-            !call SolveConstitutiveModel( this%ElementList , this%AnalysisSettings , this%Time, X, this%Status)
-
-            ! Constitutive Model Failed. Used for Cut Back Strategy
-            !if (this%Status%Error ) then
-            !    return
-            !endif
+  
             
-            ! X -> Global pressure of biphasic material
+            ! X -> Global pressure of biphasic analysis
+        
             ! Internal Force
             call InternalForceFluid(this%ElementList , this%AnalysisSettings , X , this%VSolid , this%Fint , this%Status)
 
@@ -88,16 +81,16 @@ module ModFEMSystemOfEquationsFluid
         class (ClassGlobalSparseMatrix), pointer :: G
         real(8),dimension(:) :: X , R
         real(8) :: norma
+        
+        ! X -> Global pressure of biphasic analysis
 
         call TangentStiffnessMatrixFluid(this%AnalysisSettings , this%ElementList , this%Kg )
 
-        ! As CC de deslocamento prescrito estão sendo aplicadas no sistema Kx=R e não em Kx=-R!!!
+        ! The dirichelet BC (Fluid -> pressure) are being applied in the system Kx=R and not in Kx = -R
         R = -R
-        !****************************************************************************************
         !****************************************************************************************
         !call this%BC%ApplyBoundaryConditions(  this%Kg , R , this%DispDOF, this%Ubar , X   )
         call this%BC%ApplyBoundaryConditionsFluid(  this%Kg , R , this%PresDOF, this%Pbar , X, this%PrescPresSparseMapZERO, this%PrescPresSparseMapONE)
-        !****************************************************************************************
         !****************************************************************************************
         R = -R
 

@@ -63,7 +63,7 @@ program MAIN
 	!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 
-    call kmp_set_warnings_off()  !Desativa warnings do OpenMP
+    call kmp_set_warnings_off()  !Disable warnings of the OpenMP
 	!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 	!                                       MAIN PROGRAM
 	!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -166,22 +166,15 @@ program MAIN
 
         ! Post Processing Results
         ! ---------------------------------------------------------------------------------------------
-        !call PostProcessingResults(ProbeList,PostProcessor,Analysis)
-        
-        
         select case (Analysis%AnalysisSettings%ProblemType)
        
             case (ProblemTypes%Mechanical)
-                ! Post Processing Results
-                ! ---------------------------------------------------------------------------------------------
                 call PostProcessingResults(ProbeList,PostProcessor,Analysis)
                 
             case (ProblemTypes%Thermal)
                 stop ('ERROR: Thermal analysis not implemented')
                 
             case (ProblemTypes%Biphasic)
-                ! Post Processing Results
-                ! ---------------------------------------------------------------------------------------------
                 call PostProcessingResultsBiphasic(ProbeList,PostProcessor,Analysis)
         
         end select
