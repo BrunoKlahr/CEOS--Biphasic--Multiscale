@@ -999,6 +999,42 @@ module ModMathRoutines
     end subroutine
 !######################################################################################################################################################################################
 
+!######################################################################################################################################################################################
+    subroutine MatrixMatrixMultiply ( A, B, C, alpha, beta )
+
+        implicit none
+
+        real(8),dimension(:,:)   :: A, B, C
+        real(8)                  :: alpha, beta
+        integer                  :: m, n, k, lda, ldb, ldc
+        character(len=1)         :: transA, transB
+
+        ! The routine compute a scalar-matrix-matrix product and add the result to a
+        ! scalar-matrix product, with general matrices. The operation is defined as:
+        ! C := alpha*op(A)*op(B) + beta*C,
+        ! where:
+        ! op(X) is one of op(X) = X or op(X) = X^T
+
+        ! transA or transB: Specifies the form of op(X) used in the matrix multiplication:
+        ! if trans = 'N' or 'n', then op(X) = X;
+        ! if trans = 'T' or 't', then op(X) = X^T;
+
+        transA = 'N'
+        transB = 'N'
+
+        m = size(C,1)
+        n = size(C,2)
+        k = size(B,1)
+
+        lda = size(A,1)
+        ldb = size(B,1)
+        ldc = m
+
+        call dgemm(transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
+
+    end subroutine
+!######################################################################################################################################################################################
+
 
 !######################################################################################################################################################################################
     subroutine MatrixMatrixMultiply_Trans ( A, B, C, alpha, beta )

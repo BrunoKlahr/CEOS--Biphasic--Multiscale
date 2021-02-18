@@ -583,7 +583,7 @@ module ModMultiscaleAnalysisBiphasic
        real(8), pointer, dimension(:)       :: VSe
        real(8)                              :: ContVsolid
        real(8)                              :: GradVs(3,3)
-       real(8)                              :: FinvGradVs(3,3)
+       real(8)                              :: GradVsFinv(3,3)
        
        !************************************************************************************
        ! RELATIVE VELOCITY HOMOGENISATION - SOLID REFERENCE CONFIGURATION
@@ -680,11 +680,11 @@ module ModMultiscaleAnalysisBiphasic
                    enddo
                enddo
                
-               ! Get Matrix F^-T * Grad Vs
-               FinvGradVs = 0.0d0
-               call MatrixMatrixMultiply_Trans ( inverse(F_micro), GradVs, FinvGradVs, 1.0d0, 0.0d0 )  ! C := alpha*op(A)*op(B) + beta*C,
+               ! Get Matrix Grad Vs * F^-1
+               GradVsFinv = 0.0d0
+               call MatrixMatrixMultiply ( GradVs, inverse(F_micro), GradVsFinv, 1.0d0, 0.0d0 )  ! C := alpha*op(A)*op(B) + beta*C,
               
-               ContVsolid = Trace(FinvGradVs)
+               ContVsolid = Trace(GradVsFinv)
                
                !Homogenized Relative Velocity
                HomogenizedwX = HomogenizedwX + ((wY_micro - ContVsolid*J_micro*Y_PG)*Weight(gp)*detJX*FactorAxiX)/TotalVolX
