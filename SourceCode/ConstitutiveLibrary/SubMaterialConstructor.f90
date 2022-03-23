@@ -63,6 +63,7 @@ subroutine MaterialConstructor( Element, ElementList, GlobalNodesList, Material,
     ! -----------------------------------------------------------------------------------
     do gp=1,nGP
 
+		! Allocate Stress	
         allocate( Element%GaussPoints(gp)%Stress( AnalysisSettings%StressSize ) )
 
         Element%GaussPoints(gp)%Stress = 0.0d0

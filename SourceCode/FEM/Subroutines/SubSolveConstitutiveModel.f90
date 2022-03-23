@@ -67,6 +67,7 @@ subroutine SolveConstitutiveModel( ElementList , AnalysisSettings, Time, U, Stat
 
         ! Loop over the Gauss Points
         do gp = 1 , size(ElementList(e)%El%GaussPoints)
+                       
             call ElementList(e)%El%DeformationGradient( NaturalCoord(gp,:) , U(GM) , &
                                                         AnalysisSettings , F, Status )
             ElementList(e)%El%GaussPoints(gp)%F = F

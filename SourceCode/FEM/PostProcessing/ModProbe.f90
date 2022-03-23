@@ -12,7 +12,10 @@
 !##################################################################################################
 module ModProbe
 
+    use ModParser
     use ModTools
+    use ModNodes
+    use ModGlobalFEMBiphasic
     
     implicit none
 
@@ -28,7 +31,8 @@ module ModProbe
     type ClassVariableNames
         integer  :: Displacements=1 , Temperature=2, CauchyStress=3, LogarithmicStrain=4, &
                     DeformationGradient=5 , FirstPiolaStress=6, UserDefined=7, Pressure = 8, &
-                    RelativeVelocity=9, Total_Volume = 10, GradientPressure = 11, BiphasicTotalCauchyStress = 12
+                    SpatialRelativeVelocity=9, ReferentialRelativeVelocity=10, Total_Volume = 11, GradientPressure = 12, BiphasicTotalCauchyStress = 12, &
+                    MacroscopicJacobian = 14,MacroscopicJacobianRate = 15, JdivV = 16
     end type
     type (ClassVariableNames), parameter :: VariableNames = ClassVariableNames()
 
@@ -99,7 +103,15 @@ module ModProbe
     contains
         procedure :: WriteProbeResult => WriteProbeResult_NodalForce
     end type
-
+    
+    ! Nodal Flux
+    type, extends(ClassProbe) :: ClassNodalFluxProbe
+        integer , allocatable , dimension (:) :: Nodes
+        integer , allocatable , dimension (:) :: NodesFlux
+        logical :: FluidComponents = .false.
+    contains
+        procedure :: WriteProbeResult => WriteProbeResult_NodalFlux
+    end type
 
     !XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     !Wrapper in order to use different types of probes
@@ -113,144 +125,148 @@ module ModProbe
 
 
     contains
-!==========================================================================================
-    subroutine ParseComponents( ComponentsString , Components )
-        use ModParser
-        character(len=*) :: ComponentsString
-        integer , allocatable , dimension(:) :: Components
-        type(ClassParser) :: Comp
-        character(len=len(ComponentsString)) , allocatable , dimension(:) :: SubStrings
-        integer::i
+        !==========================================================================================
+        subroutine ParseComponents( ComponentsString , Components )
+            character(len=*) :: ComponentsString
+            integer , allocatable , dimension(:) :: Components
+            type(ClassParser) :: Comp
+            character(len=len(ComponentsString)) , allocatable , dimension(:) :: SubStrings
+            integer::i
 
-        call Comp%Setup()
+            call Comp%Setup()
 
-        if (allocated(Components)) deallocate(Components)
+            if (allocated(Components)) deallocate(Components)
 
-        call Split(ComponentsString, SubStrings,",")
+            call Split(ComponentsString, SubStrings,",")
 
-        if (.not.allocated(SubStrings)) then
-            return
-        endif
-
-        allocate(Components(size(SubStrings)))
-
-        do i=1,size(SubStrings)
-
-            Components(i) = SubStrings(i)
-        enddo
-
-        deallocate(SubStrings)
-    end subroutine
-!==========================================================================================
-    function ParseVariableName(Variable) result(enu)
-        use ModParser
-        character(len=*) :: Variable
-        integer :: enu
-        type(ClassParser)::Comp
-        call Comp%Setup
-        IF ( Comp%CompareStrings( Variable,'Cauchy Stress') ) then
-            enu = VariableNames%CauchyStress
-        ELSEIF ( Comp%CompareStrings( Variable,'Biphasic Total Cauchy Stress') ) then
-            enu = VariableNames%BiphasicTotalCauchyStress
-        ELSEIF ( Comp%CompareStrings( Variable,'Deformation Gradient') ) then
-            enu = VariableNames%DeformationGradient
-        ELSEIF ( Comp%CompareStrings( Variable,'Displacements') ) then
-            enu = VariableNames%Displacements
-        ELSEIF ( Comp%CompareStrings( Variable,'Logarithmic Strain') ) then
-            enu = VariableNames%LogarithmicStrain
-        ELSEIF ( Comp%CompareStrings( Variable,'Temperature') ) then
-            enu = VariableNames%Temperature
-        ELSEIF ( Comp%CompareStrings( Variable,'Pressure') ) then
-            enu = VariableNames%Pressure
-        ELSEIF ( Comp%CompareStrings( Variable,'Gradient Pressure') ) then
-            enu = VariableNames%GradientPressure
-        ELSEIF ( Comp%CompareStrings( Variable,'First Piola Stress') ) then
-            enu = VariableNames%FirstPiolaStress
-        ELSEIF ( Comp%CompareStrings( Variable,'Relative Velocity') ) then
-            enu = VariableNames%RelativeVelocity
-        ELSEIF ( Comp%CompareStrings( Variable,'Total Volume') ) then
-            enu = VariableNames%Total_Volume
-        ELSE
-            enu = VariableNames%UserDefined
-        ENDIF
-    end function
-    !==========================================================================================
-
-
-    !==========================================================================================
-    subroutine InitializeFile(this)
-
-            !************************************************************************************
-            ! DECLARATIONS OF VARIABLES
-            !************************************************************************************
-            ! Modules and implicit declarations
-            ! -----------------------------------------------------------------------------------
-            implicit none
-
-            ! Object
-            ! -----------------------------------------------------------------------------------
-            class(ClassProbe) :: this
-
-            ! Internal variables
-            ! -----------------------------------------------------------------------------------
-            logical :: FileExists
-
-            !************************************************************************************
-
-            inquire(file=this%FileName,exist=FileExists)
-
-            if ( FileExists ) then
-                open (1234, file=this%FileName, status='unknown')
-                close(1234, status='delete')
+            if (.not.allocated(SubStrings)) then
+                return
             endif
 
-            ! Writing a header
-            open (1234, file=this%FileName, status='unknown')
-            write(1234,*) ' Time                    Value'
-            close(1234)
+            allocate(Components(size(SubStrings)))
+
+            do i=1,size(SubStrings)
+
+                Components(i) = SubStrings(i)
+            enddo
+
+            deallocate(SubStrings)
+        end subroutine
+        !==========================================================================================
+        function ParseVariableName(Variable) result(enu)
+            character(len=*) :: Variable
+            integer :: enu
+            type(ClassParser)::Comp
+            call Comp%Setup
+            IF ( Comp%CompareStrings( Variable,'Cauchy Stress') ) then
+                enu = VariableNames%CauchyStress
+            ELSEIF ( Comp%CompareStrings( Variable,'Biphasic Total Cauchy Stress') ) then
+                enu = VariableNames%BiphasicTotalCauchyStress
+            ELSEIF ( Comp%CompareStrings( Variable,'Deformation Gradient') ) then
+                enu = VariableNames%DeformationGradient
+            ELSEIF ( Comp%CompareStrings( Variable,'Displacements') ) then
+                enu = VariableNames%Displacements
+            ELSEIF ( Comp%CompareStrings( Variable,'Logarithmic Strain') ) then
+                enu = VariableNames%LogarithmicStrain
+            ELSEIF ( Comp%CompareStrings( Variable,'Temperature') ) then
+                enu = VariableNames%Temperature
+            ELSEIF ( Comp%CompareStrings( Variable,'Pressure') ) then
+                enu = VariableNames%Pressure
+            ELSEIF ( Comp%CompareStrings( Variable,'Gradient Pressure') ) then
+                enu = VariableNames%GradientPressure
+            ELSEIF ( Comp%CompareStrings( Variable,'First Piola Stress') ) then
+                enu = VariableNames%FirstPiolaStress
+            ELSEIF ( Comp%CompareStrings( Variable,'Spatial Relative Velocity') ) then
+                enu = VariableNames%SpatialRelativeVelocity
+            ELSEIF ( Comp%CompareStrings( Variable,'Referential Relative Velocity') ) then
+                enu = VariableNames%ReferentialRelativeVelocity
+            ELSEIF ( Comp%CompareStrings( Variable,'Total Volume') ) then
+                enu = VariableNames%Total_Volume
+            ELSEIF ( Comp%CompareStrings( Variable,'Macroscopic Jacobian') ) then
+                enu = VariableNames%MacroscopicJacobian
+            ELSEIF ( Comp%CompareStrings( Variable,'Macroscopic Jacobian Rate') ) then
+                enu = VariableNames%MacroscopicJacobianRate
+            ELSEIF ( Comp%CompareStrings( Variable,'Jacobian Solid Velocity Divergent') ) then
+                enu = VariableNames%JdivV
+            ELSE
+                enu = VariableNames%UserDefined
+            ENDIF
+        end function
+        !==========================================================================================
+
+        !==========================================================================================
+        subroutine InitializeFile(this)
+
+                !************************************************************************************
+                ! DECLARATIONS OF VARIABLES
+                !************************************************************************************
+                ! Modules and implicit declarations
+                ! -----------------------------------------------------------------------------------
+                implicit none
+
+                ! Object
+                ! -----------------------------------------------------------------------------------
+                class(ClassProbe) :: this
+
+                ! Internal variables
+                ! -----------------------------------------------------------------------------------
+                logical :: FileExists
+
+                !************************************************************************************
+
+                inquire(file=this%FileName,exist=FileExists)
+
+                if ( FileExists ) then
+                    open (1234, file=this%FileName, status='unknown')
+                    close(1234, status='delete')
+                endif
+
+                ! Writing a header
+                open (1234, file=this%FileName, status='unknown')
+                write(1234,*) ' Time                    Value'
+                close(1234)
 
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
 
-    !==========================================================================================
-    subroutine WriteOnFile_Char(this , string )
-            class(ClassProbe) :: this
-            character(len=*) :: string
-            integer::FileNumber
-            FileNumber = 33
-            open( FileNumber, file=this%FileName, Access='append', status='unknown')
-                write(FileNumber , '(A)') string
-            close(FileNumber)
-    end subroutine
-    !==========================================================================================
+        !==========================================================================================
+        subroutine WriteOnFile_Char(this , string )
+                class(ClassProbe) :: this
+                character(len=*) :: string
+                integer::FileNumber
+                FileNumber = 33
+                open( FileNumber, file=this%FileName, Access='append', status='unknown')
+                    write(FileNumber , '(A)') string
+                close(FileNumber)
+        end subroutine
+        !==========================================================================================
     
-    !==========================================================================================
-    subroutine WriteOnFile_Value(this , Time , Values )
-            class(ClassProbe) :: this
-            real(8)::Time
-            real(8) , dimension(:) :: Values
-            character(len=20) :: CharFormat
-            integer::FileNumber , i
-            CharFormat=''
-            write(CharFormat , '(A,I2,A)') '(' , size(Values) + 1 , '(E23.15,1x))'
-            FileNumber = 33
-            open( FileNumber, file=this%FileName, Access='append', status='unknown') !Create the string format
-                write(FileNumber , CharFormat) Time , (Values(i),i=1,size(Values))   !Export the result
-            close(FileNumber)
-    end subroutine
-    !==========================================================================================
+        !==========================================================================================
+        subroutine WriteOnFile_Value(this , Time , Values )
+                class(ClassProbe) :: this
+                real(8)::Time
+                real(8) , dimension(:) :: Values
+                character(len=20) :: CharFormat
+                integer::FileNumber , i
+                CharFormat=''
+                write(CharFormat , '(A,I2,A)') '(' , size(Values) + 1 , '(E23.15,1x))'
+                FileNumber = 33
+                open( FileNumber, file=this%FileName, Access='append', status='unknown') !Create the string format
+                    write(FileNumber , CharFormat) Time , (Values(i),i=1,size(Values))   !Export the result
+                close(FileNumber)
+        end subroutine
+        !==========================================================================================
 
-    !==========================================================================================
-    subroutine NodeProbeConstructor(Probe, FileName, VariableName, Node, ComponentsString)
-
+        !==========================================================================================
+        subroutine NodeProbeConstructor(Probe, FileName, VariableName, Node, ComponentsString)
 
             !************************************************************************************
             ! DECLARATIONS OF VARIABLES
             !************************************************************************************
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
-            use ModParser
+            
             implicit none
 
             ! Object
@@ -266,12 +282,8 @@ module ModProbe
             ! Internal variables
             ! -----------------------------------------------------------------------------------
             type(ClassNodeProbe), pointer :: NodeProbe
-
             !************************************************************************************
-
-
             call Comp%Setup()
-
 
             allocate(NodeProbe)
 
@@ -289,12 +301,11 @@ module ModProbe
 
             Probe => NodeProbe
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
 
-    !==========================================================================================
-    subroutine WriteProbeResult_Node(this,FEA)
-
+        !==========================================================================================
+        subroutine WriteProbeResult_Node(this,FEA)
 
             !************************************************************************************
             ! DECLARATIONS OF VARIABLES
@@ -317,14 +328,12 @@ module ModProbe
             real(8), dimension(size(this%Components)) :: Uprobe
             !************************************************************************************
 
-
             ! teste se probe esta ativo
             if (.not. this%Active) then
                 return
             endif
 
             ! Teste de inteligência do usuário
-
             if ( this%Node >  size(FEA%GlobalNodesList) ) then
                 call this%WriteOnFile('ERROR - Node Number is greater than the Max Number of Nodes in the Mesh')
                 this%Active = .false.
@@ -379,15 +388,13 @@ module ModProbe
 
             end select
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
 
-
-    !==========================================================================================
-    subroutine GaussPointProbeConstructor (Probe, Variable, Element, FileName,  GaussPoint, ComponentsString)
+        !==========================================================================================
+        subroutine GaussPointProbeConstructor (Probe, Variable, Element, FileName,  GaussPoint, ComponentsString)
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
-            use ModParser
             implicit none
 
             ! Object
@@ -424,19 +431,17 @@ module ModProbe
                 Call ParseComponents( ComponentsString , GaussPointProbe%Components )
             endif
 
-
             Probe => GaussPointProbe
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
 
-    !==========================================================================================
-    subroutine WriteProbeResult_GaussPoint(this,FEA)
+        !==========================================================================================
+        subroutine WriteProbeResult_GaussPoint(this,FEA)
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
             use ModFEMAnalysis
             use ModMathRoutines
-            use ModParser
             use ModContinuumMechanics
 
             implicit none
@@ -533,7 +538,6 @@ module ModProbe
 
                     endif
 
-
                 ! Writing Deformation Gradient
                 case (VariableNames%DeformationGradient)
 
@@ -607,16 +611,14 @@ module ModProbe
 
             end select
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
 
-
-    !==========================================================================================
-    subroutine MicroStructureProbeConstructor (Probe, Variable, FileName, ComponentsString)
+        !==========================================================================================
+        subroutine MicroStructureProbeConstructor (Probe, Variable, FileName, ComponentsString)
 
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
-            use ModParser
             implicit none
 
             ! Object
@@ -653,15 +655,14 @@ module ModProbe
 
             Probe => MicroStructureProbe
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
     
-    !==========================================================================================
-    subroutine MicroStructureBiphasicProbeConstructor (Probe, Variable, FileName, ComponentsString)
+        !==========================================================================================
+        subroutine MicroStructureBiphasicProbeConstructor (Probe, Variable, FileName, ComponentsString)
 
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
-            use ModParser
             implicit none
 
             ! Object
@@ -695,18 +696,16 @@ module ModProbe
                 Call ParseComponents( ComponentsString , MicroStructureBiphasicProbe%Components )
             endif
 
-
             Probe => MicroStructureBiphasicProbe
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
     
-    !==========================================================================================
-    subroutine MacroStructureProbeConstructor (Probe, Variable, FileName, ComponentsString)
+        !==========================================================================================
+        subroutine MacroStructureProbeConstructor (Probe, Variable, FileName, ComponentsString)
 
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
-            use ModParser
             implicit none
 
             ! Object
@@ -740,22 +739,19 @@ module ModProbe
                 Call ParseComponents( ComponentsString , MacroStructureProbe%Components )
             endif
 
-
             Probe => MacroStructureProbe
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
 
-    !==========================================================================================
-    subroutine NodalForceProbeConstructor(Probe, ProbeHyperMeshFile, FileName, ProbeLoadCollector, ComponentsString)
-
+        !==========================================================================================
+        subroutine NodalForceProbeConstructor(Probe, ProbeHyperMeshFile, FileName, ProbeLoadCollector, ComponentsString)
 
             !************************************************************************************
             ! DECLARATIONS OF VARIABLES
             !************************************************************************************
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
-            use ModParser
             implicit none
 
             ! Object
@@ -850,12 +846,118 @@ module ModProbe
 
             close(FileNumber)
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
+    
+        !==========================================================================================
+        subroutine NodalFluxProbeConstructor(Probe, ProbeHyperMeshFile, FileName, ProbeLoadCollector, ComponentsString)
 
-    !==========================================================================================
-    subroutine WriteProbeResult_NodalForce(this,FEA)
+            !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+            !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            implicit none
 
+            ! Object
+            ! -----------------------------------------------------------------------------------
+            class(ClassProbe), pointer :: Probe
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            character(*)     :: ProbeHyperMeshFile, FileName, ProbeLoadCollector
+            character(len=*) :: ComponentsString
+            type  (ClassNodes)              , pointer     , dimension(:) :: GlobalNodesList
+
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            type(ClassNodalFluxProbe), pointer :: NodalFluxProbe
+
+            character(len=255), allocatable , dimension(:) :: AuxString
+            integer, allocatable , dimension(:) :: NodalFluxList
+            integer ::  FileNumber, Node
+            character(len=255) :: Line
+            logical :: found
+            type(ClassParser) :: Comp
+
+            !************************************************************************************
+
+            allocate(NodalFluxProbe)
+
+            NodalFluxProbe%FileName = FileName
+
+            FileNumber = FreeFile()
+            open (FileNumber,File=ProbeHyperMeshFile,status="old")
+
+            found = .false.
+            LOOP_LOAD_COLLECTORS: do while (.not. EOF(FileNumber))
+
+                read(FileNumber,'(a255)') Line
+
+                if ( Compare(RemoveSpaces(Line),'!!hmnameloadcol') ) then
+
+                    read(FileNumber,'(a255)') Line
+
+                    call Split(Line,AuxString,'"')
+
+                    if ( Compare(RemoveSpaces(AuxString(2)),ProbeLoadCollector) ) then
+                        found = .true.
+                        exit lOOP_LOAD_COLLECTORS
+                    end if
+
+                endif
+
+            enddo LOOP_LOAD_COLLECTORS
+
+            if (.not. found) then
+                write(*,*)'Load Collector (Nodal Flux) could not be found in HyperMesh .cdb File'
+                stop
+            end if
+
+            ! Ler duas linhas dummy
+            read(FileNumber,'(a255)') Line
+            read(FileNumber,'(a255)') Line
+
+            LOOP_NODES: do while (.not. EOF(FileNumber))
+
+                read(FileNumber,'(a255)') Line
+
+                call Split(Line,AuxString,',')
+
+                if ( size(AuxString) == 4 ) then
+
+                    Node = AuxString(2)
+                    call AppendInteger( NodalFluxList, Node )
+
+                else
+                    exit LOOP_NODES
+                endif
+
+            enddo LOOP_NODES
+
+            if (size(NodalFluxList) == 0) then
+                write(*,*) 'Vector NodalFluxList is empty'
+                stop
+            end if
+            allocate ( NodalFluxProbe%Nodes,source=NodalFluxList)
+
+            
+            if ( Comp%CompareStrings(ComponentsString, 'Fluid') ) then
+                NodalFluxProbe%FluidComponents = .true.
+            else
+                write(*,*) 'Only Fluid Component is accepted to calculate Flux - subroutine NodalFluxProbeConstructor File'
+                stop
+            endif
+
+            Probe => NodalFluxProbe
+
+            close(FileNumber)
+
+        end subroutine
+        !==========================================================================================
+    
+        !==========================================================================================
+        subroutine WriteProbeResult_NodalForce(this,FEA)
 
             !************************************************************************************
             ! DECLARATIONS OF VARIABLES
@@ -863,8 +965,6 @@ module ModProbe
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
             use ModFEMAnalysis
-            use ModInterfaces
-            use ModAnalysis
             implicit none
 
             ! Object
@@ -895,12 +995,10 @@ module ModProbe
             endif
 
             allocate( Fint , mold = FEA%U )
-            Fint = 0.0d0
-                 
-            
+            Fint = 0.0d0         
             
             ! Option Problem Type 
-             select case ( FEA%AnalysisSettings%ProblemType )
+            select case ( FEA%AnalysisSettings%ProblemType )
 
                 case ( ProblemTypes%Mechanical )
                                
@@ -924,9 +1022,7 @@ module ModProbe
                              
                 case default
                     stop "Problem Type not identified in WriteProbeResult_NodalForce"
-            end select
-
-            
+            end select         
 
             allocate(TotalForce( FEA%AnalysisSettings%NDOFnode )  )
             do DOF=1,FEA%AnalysisSettings%NDOFnode
@@ -935,20 +1031,94 @@ module ModProbe
 
             call this%WriteOnFile( FEA%Time , TotalForce )
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
 
-    !==========================================================================================
-    subroutine WriteProbeResult_MicroStructure(this,FEA)
+        !==========================================================================================
+        subroutine WriteProbeResult_NodalFlux(this,FEA)
+
+            !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+            !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            use ModFEMAnalysis
+            implicit none
+
+            ! Object
+            ! -----------------------------------------------------------------------------------
+            class(ClassNodalFluxProbe) :: this
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            class(ClassFEMAnalysis) :: FEA
+
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            real(8) , allocatable , dimension(:) :: Fint, TotalFlux
+            integer :: DOF
+            type(ClassStatus) :: Status
+            integer :: Component, NDOFnode_fluid
+            !************************************************************************************
+
+            ! teste se probe esta ativo
+            if (.not. this%Active) then
+                return
+            endif
+
+            if ( any( this%Nodes >  size(FEA%GlobalNodesList)) ) then
+                call this%WriteOnFile('ERROR - Node Number is greater than the Max Number of Nodes in the Mesh')
+                this%Active = .false.
+                return
+            endif
+
+            allocate( Fint , mold = FEA%P )
+            Fint = 0.0d0
+            
+            ! Option Problem Type 
+                select case ( FEA%AnalysisSettings%ProblemType )
+
+                case ( ProblemTypes%Mechanical )
+                               
+                    call Error( "Problem Type Mechanical not defined in WriteProbeResult_NodalFlux" )
+                    
+                case ( ProblemTypes%Thermal )
+                               
+                    call Error( "Problem Type Thermal not defined in WriteProbeResult_NodalFlux" )
+                    
+                case ( ProblemTypes%Biphasic )
+                               
+                    if (this%FluidComponents) then
+                        ! Using the total internal force (Solid + Fluid contributions)
+                        call InternalForceFluid( FEA%ElementList, FEA%AnalysisSettings, FEA%P, FEA%Vsolid, Fint, Status )
+                    else 
+                        call Error( "In a Biphasic analysis, you need to define FLUID component" )
+                    endif
+                             
+                case default
+                    stop "Problem Type not identified in WriteProbeResult_NodalForce"
+                end select          
+            
+            allocate(TotalFlux(FEA%AnalysisSettings%PDOF))
+            
+            TotalFlux(1) = sum(Fint(this%NodesFlux)) 
+                        
+            call this%WriteOnFile( FEA%Time , TotalFlux )
+
+         end subroutine
+        !==========================================================================================
+     
+        !==========================================================================================
+        subroutine WriteProbeResult_MicroStructure(this,FEA)
 
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
             use ModFEMAnalysis
             use ModMathRoutines
-            use ModParser
             use ModContinuumMechanics
-            use ModMultiscaleAnalysis
+            use ModMultiscaleFEMAnalysis
             use ModVoigtNotation
+            use ModMultiscaleHomogenizations
 
             implicit none
 
@@ -989,18 +1159,16 @@ module ModProbe
 
             call Comp%Setup()
 
-
-
-
             select type (FEA)
-                class is (ClassMultiscaleAnalysis)
+                class is (ClassMultiscaleFEMAnalysis)
 
                     select case (this%VariableNameID)
 
                         ! Writing First Piola Stress
                         case (VariableNames%FirstPiolaStress)
 
-                            call FEA%HomogenizeStress(HomogenizedStress)
+                            call GetHomogenizedStress(FEA%AnalysisSettings, FEA%ElementList, HomogenizedStress)
+        
 
                             NumberOfComp = 9
                             if ( any( this%Components .gt. NumberOfComp ) ) then
@@ -1019,7 +1187,7 @@ module ModProbe
                         ! Writing Deformation Gradient
                         case (VariableNames%DeformationGradient)
 
-                            call FEA%HomogenizeDeformationGradient(HomogenizedF)
+                            call GetHomogenizedDeformationGradient(FEA%AnalysisSettings, FEA%ElementList, HomogenizedF)
 
                             NumberOfComp = 9
                             if ( any( this%Components .gt. NumberOfComp ) ) then
@@ -1040,14 +1208,14 @@ module ModProbe
                         case (VariableNames%CauchyStress)
 
                             ! Computing Homogenized First Piola (in Voigt Notation)
-                            call FEA%HomogenizeStress(HomogenizedStress)
+                            call GetHomogenizedStress(FEA%AnalysisSettings, FEA%ElementList, HomogenizedStress)
 
                             ! Mapping First Piola in Voigt to Tensor 3D
                             HomogenizedP = VoigtToTensor2(HomogenizedStress)
 
                             ! Computing Homogenized Deformation Gradient (in Tensor Notation)
-                            call FEA%HomogenizeDeformationGradient(HomogenizedF)
-
+                            call GetHomogenizedDeformationGradient(FEA%AnalysisSettings, FEA%ElementList, HomogenizedF)
+                                    
                             ! Push-Forward First Piola to Cauchy
                             HomogenizedCauchy = StressTransformation(HomogenizedF,HomogenizedP,StressMeasures%FirstPiola,StressMeasures%Cauchy)
 
@@ -1079,22 +1247,21 @@ module ModProbe
 
             end select
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
 
-    !==========================================================================================
-    subroutine WriteProbeResult_MicroStructureBiphasic(this,FEA)
+        !==========================================================================================
+        subroutine WriteProbeResult_MicroStructureBiphasic(this,FEA)
 
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
-            use ModFEMAnalysis
             use ModFEMAnalysisBiphasic
             use ModMathRoutines
-            use ModParser
             use ModContinuumMechanics
-            use ModMultiscaleAnalysis
-            use ModMultiscaleAnalysisBiphasic
+            use ModMultiscaleFEMAnalysis
+            use ModMultiscaleFEMAnalysisBiphasic
             use ModVoigtNotation
+            use ModMultiscaleHomogenizations
 
             implicit none
 
@@ -1128,7 +1295,11 @@ module ModProbe
             real(8)                                 :: HomogenizedP(3,3),HomogenizedP_voigt(9)
             real(8)                                 :: HomogenizedCauchy(3,3), HomogenizedCauchy_Voigt(6)
             real(8)                                 :: HomogenizedPressure, HomogenizedPressureWrite(1)
-            real(8)                                 :: HomogenizedGradientPressure(3), HomogenizedwX(3)
+            real(8)                                 :: HomogenizedPressureGradient(3), HomogenizedwX(3)
+            real(8)                                 :: HomogenizedJacobian, HomogenizedJacobianWrite(1)
+            real(8)                                 :: HomogenizedJacobianRate, HomogenizedJacobianRateWrite(1)
+            real(8)                                 :: HomogenizedJdivV, HomogenizedJdivVWrite(1)
+            real(8)                                 :: HomogenizedU(3)
             !************************************************************************************
             ! Test if the probe is active
             if (.not. this%Active) then
@@ -1142,14 +1313,14 @@ module ModProbe
                 class is(ClassFEMAnalysisBiphasic)
 
                     select type (FEA)
-                        class is (ClassMultiscaleAnalysisBiphasic)
+                        class is (ClassMultiscaleFEMAnalysisBiphasic)
 
                             select case (this%VariableNameID)
 
                                 ! Writing First Piola Stress
                                 case (VariableNames%FirstPiolaStress)
 
-                                    call FEA%HomogenizeTotalStressBiphasic(HomogenizedStress)
+                                    call GetHomogenizedTotalStressBiphasic(FEA%AnalysisSettings, FEA%ElementList, FEA%P, HomogenizedStress)
 
                                     NumberOfComp = 9
                                     if ( any( this%Components .gt. NumberOfComp ) ) then
@@ -1163,12 +1334,19 @@ module ModProbe
                                             call this%WriteOnFile(FEA%Time , ProbeVariable)
                                         endif
                                     endif
+                                
+                                ! Writing Macroscopic Displacement
+                                case (VariableNames%Displacements)
 
+                                    ! Computing Homogenized U
+                                    call GetHomogenizedDisplacement(FEA%AnalysisSettings, FEA%ElementList, FEA%U, HomogenizedU )
+                                    
+                                    call this%WriteOnFile(FEA%Time , HomogenizedU)
 
                                 ! Writing Deformation Gradient
                                 case (VariableNames%DeformationGradient)
 
-                                    call FEA%HomogenizeDeformationGradientBiphasic(HomogenizedF)
+                                    call GetHomogenizedDeformationGradient(FEA%AnalysisSettings, FEA%ElementList, HomogenizedF)
 
                                     NumberOfComp = 9
                                     if ( any( this%Components .gt. NumberOfComp ) ) then
@@ -1189,13 +1367,13 @@ module ModProbe
                                 case (VariableNames%CauchyStress)
 
                                     ! Computing Homogenized First Piola (in Voigt Notation)
-                                    call FEA%HomogenizeTotalStressBiphasic(HomogenizedStress)
+                                    call GetHomogenizedTotalStressBiphasic(FEA%AnalysisSettings, FEA%ElementList, FEA%P, HomogenizedStress)
 
                                     ! Mapping First Piola in Voigt to Tensor 3D
                                     HomogenizedP = VoigtToTensor2(HomogenizedStress)
 
                                     ! Computing Homogenized Deformation Gradient (in Tensor Notation)
-                                    call FEA%HomogenizeDeformationGradientBiphasic(HomogenizedF)
+                                    call GetHomogenizedDeformationGradient(FEA%AnalysisSettings, FEA%ElementList, HomogenizedF)
 
                                     ! Push-Forward First Piola to Cauchy
                                     HomogenizedCauchy = StressTransformation(HomogenizedF,HomogenizedP,StressMeasures%FirstPiola,StressMeasures%Cauchy)
@@ -1219,7 +1397,7 @@ module ModProbe
                                 case (VariableNames%Pressure)
 
                                     ! Computing Homogenized Pressure
-                                    call FEA%HomogenizedPressureBiphasic(HomogenizedPressure)
+                                    call GetHomogenizedPressureBiphasic(FEA%AnalysisSettings, FEA%ElementList, FEA%P, HomogenizedPressure)
                                     HomogenizedPressureWrite(1) = HomogenizedPressure
 
                                     call this%WriteOnFile(FEA%Time , HomogenizedPressureWrite)
@@ -1229,21 +1407,47 @@ module ModProbe
                                 case (VariableNames%GradientPressure)
 
                                     ! Computing Homogenized Pressure
-                                    call FEA%HomogenizedGradientPressureBiphasic(HomogenizedGradientPressure)
+                                    call GetHomogenizedPressureGradientBiphasic( FEA%AnalysisSettings, FEA%ElementList, FEA%P, HomogenizedPressureGradient )
                                     
-                                    call this%WriteOnFile(FEA%Time , HomogenizedGradientPressure)
+                                    call this%WriteOnFile(FEA%Time , HomogenizedPressureGradient)
                                 
                                 ! Writing Relative Velocity wX
-                                case (VariableNames%RelativeVelocity)
+                                case (VariableNames%ReferentialRelativeVelocity)
 
                                     ! Computing Homogenized wX
-                                    call FEA%HomogenizedRelativeVelocitywXBiphasic( HomogenizedwX )
+                                    call GetHomogenizedReferentialRelativeVelocitywXBiphasic(FEA%AnalysisSettings, FEA%ElementList, FEA%VSolid, HomogenizedwX )
                                     
                                     call this%WriteOnFile(FEA%Time , HomogenizedwX)
-                                    
+                                
+                                ! Writing Homogeneized Jacobian
+                                case (VariableNames%MacroscopicJacobian)
+
+                                    ! Computing Homogenized Jacobian
+                                    call GetHomogenizedJacobian(FEA%AnalysisSettings, FEA%ElementList, HomogenizedJacobian)
+                                    HomogenizedJacobianWrite(1) = HomogenizedJacobian
+
+                                    call this%WriteOnFile(FEA%Time , HomogenizedJacobianWrite)
+                                
+                                ! Writing Homogeneized Jacobian Rate
+                                case (VariableNames%MacroscopicJacobianRate)
+
+                                    ! Computing Homogenized Jacobian
+                                    call GetHomogenizedJacobianRate(FEA%AnalysisSettings, FEA%ElementList, FEA%DeltaTime,  HomogenizedJacobianRate)
+                                    HomogenizedJacobianRateWrite(1) = HomogenizedJacobianRate
+
+                                    call this%WriteOnFile(FEA%Time , HomogenizedJacobianRateWrite)    
+                                ! Writing Homogeneized Solid Velocity Divergent
+                                case (VariableNames%JdivV)
+
+                                    ! Computing Homogenized Jacobian
+                                    call GetHomogenizedJacobianSolidVelocityDivergent(FEA%AnalysisSettings, FEA%ElementList, FEA%VSolid, HomogenizedJdivV)
+                                    HomogenizedJdivVWrite(1) = HomogenizedJdivV
+
+                                    call this%WriteOnFile(FEA%Time , HomogenizedJdivVWrite)
+ 
                                 case default
                                 stop 'Error in ModProbe - WriteProbeResult_MicroStructureBiphasic - VariableNameID - not identified'
-
+                                
                             end select
 
                         class default
@@ -1255,19 +1459,17 @@ module ModProbe
                     this%Active = .false.
             end select    
 
-    end subroutine
-    !==========================================================================================
+        end subroutine
+        !==========================================================================================
     
-    !==========================================================================================
-    subroutine WriteProbeResult_MacroStructure(this,FEA)
+        !==========================================================================================
+        subroutine WriteProbeResult_MacroStructure(this,FEA)
 
             ! Modules and implicit declarations
             ! -----------------------------------------------------------------------------------
             use ModFEMAnalysis
             use ModMathRoutines
-            use ModParser
             use ModContinuumMechanics
-  
 
             implicit none
 
@@ -1318,10 +1520,8 @@ module ModProbe
             end select
    
 
-    end subroutine
-    !==========================================================================================
-
-
+        end subroutine
+        !==========================================================================================
 
 end module
 

@@ -127,11 +127,11 @@ module ModPardisoSolver
             !  6 complex and symmetric
             ! 11 real and nonsymmetric
             ! 13 complex and nonsymmetric
-            this%mtype = -2 !2 !11
+            this%mtype = this%MatrixTypePARDISO_parameter !2 !11 ! -2 e o que era
 
             ! Number of equations in the sparse linear systems of equations A*X = B
             this%n = n
-
+            
             ! Depending on the value of iparm(5) and iparm(31), either holds the permutation
             ! vector of size n or specifies elements used for computing a partial solution.
             allocate(this%perm(n))
@@ -143,7 +143,7 @@ module ModPardisoSolver
             ! some useful information after execution of the solver.
             allocate(this%iparm(64))
             this%iparm = 0
-            call Get_iparm( this%iparm )
+            call Get_iparm(this%iparm_to_mtype, this%iparm )
 
             ! Message level information. If msglvl = 0 then pardiso generates no output,
             ! if msglvl = 1 the solver prints statistical information to the screen.
@@ -161,11 +161,14 @@ module ModPardisoSolver
         ! Modifications:
         ! Date:         Author:
         !==========================================================================================
-        subroutine Get_iparm(iparm)
+        subroutine Get_iparm(iparm_to_mtype, iparm)
 
 		    !************************************************************************************
             ! DECLARATIONS OF VARIABLES
 		    !************************************************************************************
+            !Input variables
+            integer , dimension(:) :: iparm_to_mtype
+            
             ! Input/Output variables
             ! -----------------------------------------------------------------------------------
             integer , dimension(:) :: iparm
@@ -183,7 +186,7 @@ module ModPardisoSolver
             iparm(2) = 3  !(2 is the default) !3
 
             ! INPUT - Preconditioned CGS/CG. The default isiparm(4)=0.
-            iparm(4) = 0
+            iparm(4) = 0!0!0
 
             ! INPUT - iparm(5) = 0: User permutation in theperm array is ignored
             iparm(5) = 0
@@ -191,24 +194,24 @@ module ModPardisoSolver
             ! INPUT - iparm(6) = 0 : The arrayx contains the solution; right-hand side vectorb is
             ! kept unchanged.
             iparm(6) = 0
-
+            
             ! INPUT - Iterative refinement step. The solver automatically performs two steps of
             ! iterative refinement when perturbed pivots are obtained during the numerical
             ! factorization.
-            iparm(8) = 0
+            iparm(8) = 100
 
             ! INPUT - Pivoting perturbation. The default value for nonsymmetric matrices
             ! (mtype =11,mtype=13), eps = 10-13.
-            iparm(10) = 0
+            iparm(10) = iparm_to_mtype(10) ! 13 -> unsymmetric, 8 -> symmetric indefinite, 0 --> already using
 
             ! INPUT - Scaling vectors.
-            iparm(11) = 0
+            iparm(11) = iparm_to_mtype(11) ! 1 -> unsymmetric, 0 -> symmetric indefinite, 0 --> already using
 
             ! INPUT - Default: Solve a linear system AX = B.
             iparm(12) = 0
 
             ! INPUT -Improved accuracy using (non-) symmetric weighted matching.
-             iparm(13) = 0
+             iparm(13) = iparm_to_mtype(13) ! 1-> unsymmetric, 0-> already using
 
             ! INPUT/OUTPUT -  Report the number of non-zero elements in the factors.
             ! Enable reporting if iparm(18) < 0. Disable reporting if iparm(18) >= 0.
@@ -224,7 +227,8 @@ module ModPardisoSolver
             ! INPUT - Parallel factorization control.
             ! iparm(24) = 0: Intel MKL PARDISO uses the classic algorithm for factorization. 
             ! iparm(24) = 1: Intel MKL PARDISO uses a two-level factorization algorithm. 
-            iparm(24) = 1
+            ! iparm(24) = 10: Intel MKL PARDISO uses a two-level factorization algorithm for UNSYMMETRIC matrices
+            iparm(24) = iparm_to_mtype(24)!10 ! 1 -> already using
 
             ! INPUT - Parallel forward/backward solve control. Intel MKL PARDISO uses a parallel
             ! algorithm for the solve step.
@@ -367,11 +371,17 @@ module ModPardisoSolver
             call CallPardiso( this, PhaseAll, A%val, A%RowMap, A%Col, b, x )
 
             !SOLVE_STATUS=PardisoParams%error
+            
+            !write(*,'(12x,a,i3)') 'Iparm 7: ',this%iparm(7)
+            !write(*,'(12x,a,i3)') 'Iparm 10: ',this%iparm(10)
+            !write(*,'(12x,a,i3)') 'Iparm 11: ',this%iparm(11)
+            !write(*,'(12x,a,i3)') 'Iparm 13: ',this%iparm(13)
+            !write(*,'(12x,a,i3)') 'Iparm 24: ',this%iparm(24)
 
             call CallPardiso( this, PhaseKill, A%val, A%RowMap, A%Col, b, x )
-
+            
             call this%Destructor ()
-
+            
 		    !************************************************************************************
 
         end subroutine

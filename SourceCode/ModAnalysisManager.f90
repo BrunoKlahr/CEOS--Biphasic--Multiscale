@@ -12,8 +12,8 @@
 !##################################################################################################
 module ModAnalysisManager
 
-    use ModMultiscaleAnalysis
-    use ModMultiscaleAnalysisBiphasic
+    use ModMultiscaleFEMAnalysis
+    use ModMultiscaleFEMAnalysisBiphasic
     use ModReadInputFile
     use ModAnalysis
     use ModFEMAnalysisBiphasic
@@ -39,6 +39,7 @@ module ModAnalysisManager
         type (ClassNodes) , pointer , dimension(:)               :: GlobalNodesList
         type (ClassElementsWrapper) , pointer , dimension(:)     :: ElementList
         class (ClassBoundaryConditions), pointer                 :: BC
+        class (ClassBoundaryConditionsFluid), pointer            :: BCFluid
         class (ClassNonlinearSolver) , pointer                   :: NLSolver
         character(len=*)                                         :: FileName
 
@@ -53,29 +54,37 @@ module ModAnalysisManager
         ! Reading the input files
         !************************************************************************************
         call ReadInputFile( FileName, AnalysisSettings , GlobalNodesList , ElementList , &
-                            BC , NLSolver )
+                            BC , BCFluid, NLSolver )
         !************************************************************************************
         
-        
-        ! Definig and allocating the analysis
+        ! Defining and allocating the analysis, Kg and BCFluid
         if (AnalysisSettings%ProblemType .eq. ProblemTypes%Mechanical) then
             if (AnalysisSettings%MultiscaleAnalysis) then
-                allocate( ClassMultiscaleAnalysis :: Analysis)
-                allocate(Analysis%Kg)
+                allocate( ClassMultiscaleFEMAnalysis :: Analysis)
             else
-                allocate( ClassFEMAnalysis :: Analysis)
-                allocate(Analysis%Kg)
+                allocate( ClassFEMAnalysis :: Analysis) 
             endif 
+            allocate( Analysis%Kg)
         elseif (AnalysisSettings%ProblemType .eq. ProblemTypes%Biphasic) then
             if (AnalysisSettings%MultiscaleAnalysis) then
-                allocate( ClassMultiscaleAnalysisBiphasic :: Analysis)
-                allocate(Analysis%Kg)
-                allocate(Analysis%KgFluid)
+                allocate( ClassMultiscaleFEMAnalysisBiphasic :: Analysis)
             else
                 allocate( ClassFEMAnalysisBiphasic :: Analysis)
-                allocate(Analysis%Kg)
-                allocate(Analysis%KgFluid)
-            endif
+            endif    
+            select type (Analysis)
+                class is (ClassFEMAnalysisBiphasic)
+                    if (AnalysisSettings%SolutionScheme .eq. SolutionScheme%Sequential) then
+                        allocate( Analysis%Kg)
+                        allocate( Analysis%KgFluid)
+                    elseif (AnalysisSettings%SolutionScheme .eq. SolutionScheme%Monolithic) then
+                        allocate( Analysis%Kg)
+                    else
+                        stop 'Error: Solution Scheme not identified in ReadAndCreateAnalysis'
+                    endif
+                    Analysis%BCFluid => BCFluid
+                class default
+                    stop 'Error: Analysis not defined'
+            end select
         else
             stop 'Error: Problem Type not identified in ReadAndCreateAnalysis'
         endif

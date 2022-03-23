@@ -11,13 +11,11 @@
 ! Date: 2019/05 (Biphasic Analysis)         Author: Bruno Klahr - Thiago A. Carniel
 !##################################################################################################
 module ModAnalysis
-
 	!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 	! DECLARATIONS OF VARIABLES
 	!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     ! IDs of the analysis settings.
     !----------------------------------------------------------------------------------------------
-
 
     ! Enumerators
     !----------------------------------------------------------------------------------------------
@@ -55,8 +53,30 @@ module ModAnalysis
         integer  :: Taylor=1 , Linear=2 , Periodic=3, Minimal=4, MinimalLinearD1 = 5, MinimalLinearD3 = 6
     end type
     type (ClassMultiscaleModels), parameter :: MultiscaleModels = ClassMultiscaleModels()
-
-
+    
+    !Splitting Algorithms
+    type :: ClassSplittingScheme
+    	integer ::  Drained = 1, Undrained = 2, FixedStress = 3, FixedStrain = 4 
+    end type ClassSplittingScheme
+    type (ClassSplittingScheme), parameter :: SplittingScheme = ClassSplittingScheme() 
+    
+    type :: ClassSolutionScheme
+    	integer ::  Monolithic = 1, Sequential = 2
+    end type ClassSolutionScheme
+    type(ClassSolutionScheme), parameter :: SolutionScheme = ClassSolutionScheme()
+    
+    !Staggered Parameters
+    type :: ClassStaggeredParameters
+    	real(8) :: SolidStaggTol   
+        real(8) :: FluidStaggTol   
+        real(8) :: StabilityConst
+        real(8) :: FixedStressNorm = 1.0d-15
+        integer :: UndrainedActivator
+        integer :: FixedStressActivator
+    end type ClassStaggeredParameters
+    
+    
+    
     ! Parameters of the analysis type.
     !----------------------------------------------------------------------------------------------
     integer , parameter :: MaxElementNumberDOF=200 , MaxTensorComponents=6, MaxElementNodes=100
@@ -64,6 +84,10 @@ module ModAnalysis
     ! Arrays used to allocate memory
     !----------------------------------------------------------------------------------------------
     real(8) , target , dimension( MaxElementNumberDOF , MaxElementNumberDOF)    :: Ke_Memory
+    real(8) , target , dimension( MaxElementNumberDOF , MaxElementNumberDOF)    :: Kuu_Memory
+    real(8) , target , dimension( MaxElementNumberDOF , MaxElementNumberDOF)    :: Kup_Memory
+    real(8) , target , dimension( MaxElementNumberDOF , MaxElementNumberDOF)    :: Kpu_Memory
+    real(8) , target , dimension( MaxElementNumberDOF , MaxElementNumberDOF)    :: Kpp_Memory
     real(8) , target , dimension( MaxTensorComponents , MaxElementNumberDOF)    :: B_Memory
     real(8) , target , dimension( 9 , MaxElementNumberDOF)                      :: G_Memory
     real(8) , target , dimension( 9 , 9)                                        :: S_Memory
@@ -73,6 +97,20 @@ module ModAnalysis
     real(8) , target , dimension( MaxTensorComponents )                         :: Stress_Memory
     real(8) , target , dimension( MaxElementNumberDOF , MaxElementNumberDOF)    :: DifSF_Memory
     integer , target , dimension( MaxElementNumberDOF )                         :: GM_Memory
+    integer , target , dimension( MaxElementNumberDOF )                         :: GM_Monolithic_Memory
+    
+    
+    real(8) , target , dimension( 9 , MaxElementNumberDOF)                      :: Q_Memory
+    real(8) , target , dimension( 9, 9)                                         :: L_Memory    ! Monolithic Q,L,A Finite Element Matrices
+    real(8) , target , dimension( 6, 3)                                         :: T_Memory
+    real(8) , target , dimension( 9, 9)                                         :: A_Memory
+    
+    real(8) , target , dimension( MaxElementNumberDOF , 9)                      :: Nf_Q_vse_Memory
+    real(8) , target , dimension( MaxElementNumberDOF , MaxElementNumberDOF)    :: Nfbs_Memory
+    real(8) , target , dimension( MaxElementNumberDOF , 6)                      :: transHtransT_Memory
+    real(8) , target , dimension( 6 , 6)                                        :: Kftg_Memory
+    real(8) , target , dimension( MaxElementNumberDOF , 6)                      :: transHtransTKftg_Memory
+    
 
     real(8) , target , dimension( MaxTensorComponents , MaxElementNumberDOF)    :: DB_Memory
     real(8) , target , dimension( 9 , MaxElementNumberDOF)                      :: SG_Memory
@@ -84,15 +122,21 @@ module ModAnalysis
     real(8) , target , dimension( 3 , MaxElementNumberDOF)                      :: Ne_Memory
     real(8) , target , dimension( 9 , MaxElementNumberDOF)                      :: Gpg_Memory
     real(8) , target , dimension( 3 , MaxElementNumberDOF)                      :: Npg_Memory
+    real(8) , target , dimension( MaxElementNumberDOF)                          :: Nfpg_Memory
+    real(8) , target , dimension( 3 , MaxElementNumberDOF)                      :: Hfpg_Memory
+    real(8) , target , dimension( 3 , MaxElementNumberDOF)                      :: Hfe_Memory
+    real(8) , target , dimension( MaxElementNumberDOF)                          :: Nfe_Memory
     
     
     real(8) , target , dimension( MaxElementNumberDOF , MaxElementNumberDOF)    :: KeF_Memory       ! Memory for Ke Fluid
     real(8) , target , dimension( MaxElementNumberDOF)                          :: Nf_Memory        ! Fluid functions
+    real(8) , target , dimension( MaxElementNumberDOF, MaxElementNumberDOF)     :: N_Memory         ! Fluid functions (matrix format)
     real(8) , target , dimension( MaxElementNumberDOF)                          :: hs_Memory        ! Vector h (tr(e) = h^Tq)
     real(8) , target , dimension( MaxElementNumberDOF,1)                        :: bs_Memory        ! Vector bs (div(u) = b^Tq)
     real(8) , target , dimension( 3 , MaxElementNumberDOF)                      :: H_Memory         ! Matrix H (grad p = H p)
     real(8) , target , dimension( MaxTensorComponents,MaxTensorComponents)      :: Kf_Memory        ! Stiffeness matrix Kf
     real(8) , target , dimension( MaxElementNumberDOF )                         :: Pe_Memory        ! Vector P element
+    real(8) , target , dimension( MaxElementNumberDOF )                         :: Pe_converged_Memory        ! Vector P converged 
     real(8) , target , dimension( MaxElementNumberDOF )                         :: Vse_Memory       ! Vector solid velocity element
     integer , target , dimension( MaxElementNumberDOF )                         :: GMfluid_Memory   ! Global Maping Fluid
     real(8) , target , dimension( 9 , MaxElementNumberDOF)                      :: SfG_Memory       ! Cauchy for fluid
@@ -101,6 +145,10 @@ module ModAnalysis
 	!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     ! Marking global variables as THREADPRIVATE so that they won't be shared between OMP regions
     !$OMP THREADPRIVATE(Ke_Memory)
+    !$OMP THREADPRIVATE(Kuu_Memory)
+    !$OMP THREADPRIVATE(Kup_Memory)
+    !$OMP THREADPRIVATE(Kpu_Memory)
+    !$OMP THREADPRIVATE(Kpp_Memory)
     !$OMP THREADPRIVATE(B_Memory)
     !$OMP THREADPRIVATE(G_Memory)
     !$OMP THREADPRIVATE(S_Memory)
@@ -119,15 +167,20 @@ module ModAnalysis
     !$OMP THREADPRIVATE(Ne_Memory)
     !$OMP THREADPRIVATE(Gpg_Memory)
     !$OMP THREADPRIVATE(Npg_Memory)
-        
+    !$OMP THREADPRIVATE(Nfpg_Memory) 
+    !$OMP THREADPRIVATE(Hfpg_Memory) 
+    !$OMP THREADPRIVATE(Hfe_Memory)
+    !$OMP THREADPRIVATE(Nfe_Memory)
     
     !$OMP THREADPRIVATE(KeF_Memory)
     !$OMP THREADPRIVATE(Nf_Memory)
+    !$OMP THREADPRIVATE(N_Memory)
     !$OMP THREADPRIVATE(hs_Memory)
     !$OMP THREADPRIVATE(bs_Memory)
     !$OMP THREADPRIVATE(H_Memory)
     !$OMP THREADPRIVATE(Kf_Memory)
     !$OMP THREADPRIVATE(Pe_Memory)
+    !$OMP THREADPRIVATE(Pe_converged_Memory)
     !$OMP THREADPRIVATE(VSe_Memory)
     !$OMP THREADPRIVATE(GMfluid_Memory)
     !$OMP THREADPRIVATE(SfG_Memory)
@@ -145,8 +198,10 @@ module ModAnalysis
         integer ::  Hypothesis
         integer ::  ElementTech
         integer ::  MultiscaleModel
+        integer ::  FiberAxialDirection
         integer ::  MultiscaleModelFluid
-        integer ::  MultiscaleModelSolid
+        integer ::  SplittingScheme
+        integer ::  SolutionScheme
         logical ::  NLAnalysis
         logical ::  MultiscaleAnalysis
         
@@ -157,11 +212,20 @@ module ModAnalysis
         integer ::  BRowSize   , DSize
         integer ::  StressSize , StrainSize
         integer ::  GRowSize   , SSize 
+        integer ::  NDOFsolid  , NDOFfluid
         integer ::  MaxCutBack
-
         
         integer ::  Pdof
-
+        
+        ! Referential volume
+        real(8) :: TotalVolX = 0
+        
+        ! Multiscale Minimal Model Parameter
+        real(8) :: MultiscaleEpsilonParameter      
+        
+        ! Staggered Parameter
+        type(ClassStaggeredParameters) :: StaggeredParameters
+        
         contains
 
             ! Class Methods
@@ -183,8 +247,6 @@ module ModAnalysis
         ! Date:         Author:
         !==========================================================================================
         subroutine  ClassAnalysisConstructor(this,FlagAnalysisSettings)
-
-
 		    !************************************************************************************
             ! DECLARATIONS OF VARIABLES
 		    !************************************************************************************
@@ -259,7 +321,6 @@ module ModAnalysis
             end select
 
 		    !************************************************************************************
-
         end subroutine
         !==========================================================================================
 
@@ -270,8 +331,6 @@ module ModAnalysis
         ! Date:         Author:
         !==========================================================================================
         subroutine  GetTotalNumberOfDOF(this, GlobalNodesList, TotalnDOF)
-
-
 		    !************************************************************************************
             ! DECLARATIONS OF VARIABLES
 		    !************************************************************************************
@@ -298,6 +357,8 @@ module ModAnalysis
 		    !************************************************************************************
 
             TotalnDOF = size( GlobalNodesList ) * this%NDOFnode
+            
+            this%NDOFsolid = TotalnDOF 
 
 		    !************************************************************************************
 
@@ -306,8 +367,6 @@ module ModAnalysis
 
         !==========================================================================================
         subroutine  GetTotalNumberOfDOF_fluid(this, GlobalNodesList, TotalnDOF_fluid)
-
-
 		    !************************************************************************************
             ! DECLARATIONS OF VARIABLES
 		    !************************************************************************************
@@ -341,13 +400,13 @@ module ModAnalysis
             enddo
             
             TotalnDOF_fluid = nNosFluid * this % Pdof 
+            
+            this%NDOFfluid = TotalnDOF_fluid
 
 		    !************************************************************************************
 
         end subroutine
         !==========================================================================================
-
-
 
 end module
 

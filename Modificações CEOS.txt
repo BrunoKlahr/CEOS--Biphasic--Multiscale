@@ -1,0 +1,30 @@
+1) ModReadInputFile
+
+	- Ajeitar leitura do F, P e GradP  (CHECK)
+
+2) ModMultiscaleAnalysis e ModFEMAnalysis
+
+	- Ajeitar rotinas que alocam matriz global (CHECK)
+	- Verificar possibilidade de reaproveitamento de rotinas
+	hoje postas como procedures da classe. (check)
+	- Ajeitar o Solve. Rotinas de multiescala ficarem no módulo de 
+	multiescala. (check)
+
+3) Criação do ModMultiscaleHomogenization
+
+4) Verificar necessidade de 3 módulos FEMSOE minimal (Check)
+5) Verificar necessidade de 3 rotinas ExternalForceMinimal (Check)
+
+6) SubTangentStifnessMatrix (check)
+	- Criar duas subroutines
+	
+	- Melhorar reaproveitamento de código.
+
+7) ModMultiscaleBoundaryConditions
+
+	- Verificar necessidade de diferentes ApplyBC (check)
+	- Revisar GetBoundaryConditions (check)
+		- Remover os Pmacro de cada nó (check)
+		- Remover Fmacro de cada nó (check)
+
+8) Modification ModConsitutiveModel

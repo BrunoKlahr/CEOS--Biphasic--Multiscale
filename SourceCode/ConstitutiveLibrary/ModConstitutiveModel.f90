@@ -17,10 +17,25 @@ module ModConstitutiveModel
     type ClassAdditionalVariables
 
         real(8) :: Jbar
-        real(8) :: mX(3)    ! Fiber vector on the reference configuration
-        real(8) :: w(3)     ! Relative velocity on biphasic model
+        real(8) :: mX(3)            ! Fiber vector on the reference configuration
+        real(8) :: w(3)             ! Spatial Relative velocity on biphasic model
+        real(8) :: JdivV=0.0d0      ! Jacobian * Divergent velocity on biphasic model
+        real(8) :: Jn=1.0d0         ! Jacobian in time tn, used to compute the rate of J
 
     endtype
+    
+    type :: ClassStaggeredVariables
+    	
+        real(8) ::  J_PreviousStaggered = 1.0d0
+        real(8) ::  Press_PreviousStaggered = 0.0d0
+        real(8) ::  Press_CurrentStaggered = 0.0d0
+        real(8) ::  Press_PreviousStep = 0.0d0
+        real(8) ::  Kd_PreviousStaggered = 1.0d0
+        real(8) ::  Kd_PreviousStep = 1.0d0
+        real(8) ::  DeltaTime = 1.0d0
+        real(8) ::  P_InfNorm = 1.0d0
+        
+    end type ClassStaggeredVariables
 
 	!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     ! ClassConstitutiveModel: Common definitions to all Constitutive Models
@@ -31,12 +46,13 @@ module ModConstitutiveModel
         real(8)                             :: F(3,3)=0.0d0
         real(8)                             :: T
         real(8)                             :: Time = 0.0d0
-        real(8)                             :: FluidCauchyStress(6)=0.0d0 ! Fluid Stress on voigt notation (posprocess)
+        real(8)                             :: FluidCauchyStress(6)=0.0d0 ! Fluid Stress on voigt notation (postprocess)
 
-        type (ClassAdditionalVariables) :: AdditionalVariables
+        type (ClassAdditionalVariables)     ::  AdditionalVariables
+        type (ClassStaggeredVariables)      ::  StaggeredVariables
 
         contains
-
+        
             ! Class Methods
             !------------------------------------------------------------------------------------
 
@@ -57,9 +73,7 @@ module ModConstitutiveModel
             procedure :: LoadInternalVariablesFromVector => LoadInternalVariablesFromVectorBase
             procedure :: ExportInternalVariablesToVector => ExportInternalVariablesToVectorBase
                         
-            ! Fluid
-            procedure :: GetPermeabilityTensor              => GetPermeabilityTensorBase
-
+ 
         end type
 
 	!XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -157,13 +171,22 @@ module ModConstitutiveModel
             end subroutine
             !==========================================================================================
             
-            !==========================================================================================
-            subroutine GetPermeabilityTensorBase(this,Kf)
-                class(ClassConstitutiveModel)::this
-                real(8),dimension(:,:),intent(inout)::Kf
-                stop "Error: Permeability Tensor"
-            end subroutine
-            !==========================================================================================
+            !!==========================================================================================
+            !subroutine GetPermeabilityTensorBase(this,Kf)
+            !    class(ClassConstitutiveModel)::this
+            !    real(8),dimension(:,:),intent(inout)::Kf
+            !    stop "Error: Permeability Tensor"
+            !end subroutine
+            !!==========================================================================================
+            !
+            !!==========================================================================================
+            !subroutine GetTangentPermeabilityTensorBase(this,Kftg)
+            !    class(ClassConstitutiveModel)::this
+            !    real(8),dimension(:,:),intent(inout)::Kftg
+            !    stop "Error: Tangent Permeability Tensor"
+            !end subroutine
+            !!==========================================================================================
+            !
             
             !==========================================================================================
             subroutine UpdateStressAndStateVariablesBase(this,Status)
